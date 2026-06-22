@@ -1,0 +1,11 @@
+{
+  "name": "browser-extension",
+  "version": "2026.6.0",
+  "description": "Browser extension that connects your browser to Personal Agent as a secure device, so the assistant can read and drive pages.",
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  }
+}

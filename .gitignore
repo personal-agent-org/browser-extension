@@ -1,0 +1,6 @@
+# Build output assembled by build.mjs (Chrome + Firefox loadable/packable dirs).
+dist/
+
+# Extension signing material — these pin the extension identity and must stay secret.
+*.pem
+*.crx

@@ -1,0 +1,65 @@
+{
+  "extDescription": {
+    "message": "Verbindet deinen Browser mit Personal Agent, damit der Assistent Seiten in deinem Browser lesen und steuern kann (ein Gerät vom Typ browser)."
+  },
+  "instanceSettings": { "message": "Instanz-Einstellungen" },
+  "instanceHint": {
+    "message": "Gib die Server-URL deines Personal Agent ein und speichere — OIDC-Issuer und Client-ID werden automatisch vom Server geladen."
+  },
+  "serverUrlLabel": { "message": "Server-URL" },
+  "advancedSummary": { "message": "Erweitert (OIDC überschreiben)" },
+  "issuerLabel": { "message": "OIDC-Issuer" },
+  "issuerPlaceholder": { "message": "automatisch vom Server ermittelt" },
+  "clientIdLabel": { "message": "Client-ID" },
+  "saveSettings": { "message": "Einstellungen speichern" },
+  "toolsLegend": { "message": "Freigegebene Tools & Sicherheit" },
+  "toolsHint": {
+    "message": "Ein Tool abwählen, um es komplett vor dem Assistenten zu verbergen — es wird weder angekündigt noch ausgeführt. Schreibende Tools können Seiten verändern."
+  },
+  "selectAll": { "message": "Alle auswählen" },
+  "selectNone": { "message": "Keine auswählen" },
+  "blockedHostsLabel": { "message": "Zusätzlich blockierte Hosts (einer pro Zeile)" },
+  "blockedHostsHint": {
+    "message": "Die Personal-Agent-App-Herkunft und der OIDC-Issuer sind immer blockiert, der Agent kann sie also nie steuern."
+  },
+  "saveToolsBtn": { "message": "Tool-Einstellungen speichern" },
+  "connect": { "message": "Verbinden (anmelden)" },
+  "disconnect": { "message": "Trennen" },
+  "firstReviewPrompt": {
+    "message": "Wähle, welche Tools der Assistent nutzen darf, und klicke dann erneut auf Verbinden."
+  },
+  "saveValidFirst": { "message": "Vor dem Verbinden gültige Einstellungen speichern." },
+  "savedReconnect": { "message": "Gespeichert — verbinde neu, um die Tools neu anzukündigen." },
+  "saved": { "message": "gespeichert" },
+  "discovering": { "message": "ermittle…" },
+  "signingIn": { "message": "melde an…" },
+  "disconnecting": { "message": "trenne…" },
+  "notRegistered": { "message": "Nicht registriert" },
+  "deviceLabel": {
+    "message": "Gerät: $id$",
+    "placeholders": { "id": { "content": "$1" } }
+  },
+  "discoverFailed": {
+    "message": "Einstellungen konnten nicht vom Server gelesen werden ($error$). Prüfe die URL oder setze den OIDC-Issuer unter Erweitert.",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "loginFailed": {
+    "message": "Anmeldung fehlgeschlagen: $error$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "urlInvalid": {
+    "message": "$field$ muss eine gültige URL sein.",
+    "placeholders": { "field": { "content": "$1" } }
+  },
+  "urlInsecure": {
+    "message": "$field$ muss https verwenden (http nur für localhost).",
+    "placeholders": { "field": { "content": "$1" } }
+  },
+  "writeTag": { "message": "schreibt" },
+  "status_idle": { "message": "inaktiv" },
+  "status_connected": { "message": "verbunden" },
+  "status_disconnected": { "message": "getrennt" },
+  "status_error": { "message": "Fehler" },
+  "status_signin_required": { "message": "Anmeldung erforderlich — auf Verbinden klicken" },
+  "status_not_configured": { "message": "Nicht konfiguriert — Einstellungen ausfüllen & speichern" }
+}

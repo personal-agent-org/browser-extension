@@ -1,0 +1,144 @@
+{
+  "extDescription": {
+    "message": "Connects your browser to Personal Agent so the assistant can read and drive pages in your browser (a kind=browser device).",
+    "description": "Extension description shown in the store and the browser's add-ons page."
+  },
+  "instanceSettings": {
+    "message": "Instance settings",
+    "description": "Legend of the server-configuration section."
+  },
+  "instanceHint": {
+    "message": "Enter your Personal Agent server URL and Save — the OIDC issuer and client ID are fetched from the server automatically.",
+    "description": "Help text under the Instance settings legend."
+  },
+  "serverUrlLabel": {
+    "message": "Server URL",
+    "description": "Label for the server URL input; also used as the field name in validation errors."
+  },
+  "advancedSummary": {
+    "message": "Advanced (override OIDC)",
+    "description": "Toggle that reveals the optional OIDC override fields."
+  },
+  "issuerLabel": {
+    "message": "OIDC issuer",
+    "description": "Label for the OIDC issuer input; also used as the field name in validation errors."
+  },
+  "issuerPlaceholder": {
+    "message": "auto-discovered from server",
+    "description": "Placeholder for the optional OIDC issuer override input."
+  },
+  "clientIdLabel": {
+    "message": "Client ID",
+    "description": "Label for the optional OAuth client ID input."
+  },
+  "saveSettings": {
+    "message": "Save settings",
+    "description": "Button that saves the server configuration."
+  },
+  "toolsLegend": {
+    "message": "Exposed tools & safety",
+    "description": "Legend of the tool-selection section."
+  },
+  "toolsHint": {
+    "message": "Uncheck a tool to hide it from the assistant entirely — it is neither announced nor executed. Write tools can change pages.",
+    "description": "Help text explaining the tool checkboxes."
+  },
+  "selectAll": {
+    "message": "Select all",
+    "description": "Link that enables every tool."
+  },
+  "selectNone": {
+    "message": "Select none",
+    "description": "Link that disables every tool."
+  },
+  "blockedHostsLabel": {
+    "message": "Additional blocked hosts (one per line)",
+    "description": "Label for the blocked-hosts textarea."
+  },
+  "blockedHostsHint": {
+    "message": "The Personal Agent app origin and the OIDC issuer are always blocked, so the agent can never drive them.",
+    "description": "Help text under the blocked-hosts textarea."
+  },
+  "saveToolsBtn": {
+    "message": "Save tool settings",
+    "description": "Button that saves the tool selection + blocked hosts."
+  },
+  "connect": {
+    "message": "Connect (sign in)",
+    "description": "Primary button that signs in and connects the extension."
+  },
+  "disconnect": {
+    "message": "Disconnect",
+    "description": "Button that signs out / disconnects."
+  },
+  "firstReviewPrompt": {
+    "message": "Choose which tools the assistant may use, then click Connect again.",
+    "description": "Shown on the first connect so the user reviews the exposed tools before signing in."
+  },
+  "saveValidFirst": {
+    "message": "Save valid settings before connecting.",
+    "description": "Error when Connect is clicked with an invalid/unsaved server URL."
+  },
+  "savedReconnect": {
+    "message": "Saved — reconnecting to re-announce.",
+    "description": "Confirmation after saving the tool settings."
+  },
+  "saved": { "message": "saved", "description": "Transient status after saving settings." },
+  "discovering": {
+    "message": "discovering…",
+    "description": "Transient status while fetching OIDC config from the server."
+  },
+  "signingIn": { "message": "signing in…", "description": "Transient status during sign-in." },
+  "disconnecting": {
+    "message": "disconnecting…",
+    "description": "Transient status during disconnect."
+  },
+  "notRegistered": {
+    "message": "Not registered",
+    "description": "Device line when no device id exists yet."
+  },
+  "deviceLabel": {
+    "message": "Device: $id$",
+    "description": "Device line with the short device id.",
+    "placeholders": { "id": { "content": "$1" } }
+  },
+  "discoverFailed": {
+    "message": "Could not read settings from the server ($error$). Check the URL, or set the OIDC issuer under Advanced.",
+    "description": "Error when OIDC auto-discovery fails.",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "loginFailed": {
+    "message": "login failed: $error$",
+    "description": "Error when sign-in fails.",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "urlInvalid": {
+    "message": "$field$ must be a valid URL.",
+    "description": "Validation error for a malformed URL.",
+    "placeholders": { "field": { "content": "$1" } }
+  },
+  "urlInsecure": {
+    "message": "$field$ must use https (http only for localhost).",
+    "description": "Validation error when a URL is not https.",
+    "placeholders": { "field": { "content": "$1" } }
+  },
+  "writeTag": {
+    "message": "write",
+    "description": "Tag marking a tool that can change pages."
+  },
+  "status_idle": { "message": "idle", "description": "Connection status: idle." },
+  "status_connected": { "message": "connected", "description": "Connection status: connected." },
+  "status_disconnected": {
+    "message": "disconnected",
+    "description": "Connection status: disconnected."
+  },
+  "status_error": { "message": "error", "description": "Connection status: error." },
+  "status_signin_required": {
+    "message": "Sign-in required — click Connect",
+    "description": "Connection status when a sign-in is needed."
+  },
+  "status_not_configured": {
+    "message": "Not configured — fill in & save settings",
+    "description": "Connection status when the server isn't configured yet."
+  }
+}

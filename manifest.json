@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Personal Agent",
+  "version": "2026.6.0",
+  "default_locale": "en",
+  "description": "__MSG_extDescription__",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0m6M/7hQ+g88/i50hYzMesgjpmxHqC+LtL5qRkb1yTWGluXYyAmBdOk/RVYaUANSRJrDnbfjrZq/Ff3qpFJJssqpYwCPziI+MC7pQeJzMAARq3XUshdcbznV55cotSwVsp7OEo7BuYFAtZ/wPys8Dg207yHpId3PEasl1piPAk0FBi+RE1fkLQkAcoQqZMK73fa0o6Az9B4LtVfW6SRYcXKuZOi91NN/tTln1oxNu1C2YDz/2DfIkJxXhOstgtfdxQ0NmANYgOZUHCbvaWXrP1qbvO9e1h0/tM42yebxBRPQdwM+Xp8fAA7oc8KRZRgmC6FWqPeg+sdghENQLyfNoQIDAQAB",
+  "permissions": ["tabs", "scripting", "storage", "alarms", "identity", "activeTab", "debugger"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Personal Agent",
+    "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" }
+  }
+}

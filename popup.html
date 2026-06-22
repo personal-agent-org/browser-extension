@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font: 13px system-ui, sans-serif; width: 300px; padding: 12px; margin: 0; background: #1b1d22; color: #e6e6e6; }
+      h1 { font-size: 14px; margin: 0 0 8px; }
+      .row { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+      .dot { width: 9px; height: 9px; border-radius: 50%; background: #888; }
+      .dot.connected { background: #36c08a; }
+      .dot.disconnected, .dot.error, .dot.not_configured, .dot.signin_required { background: #d9534f; }
+      input { width: 100%; box-sizing: border-box; padding: 5px; margin: 2px 0 8px; background: #25272e; color: #e6e6e6; border: 1px solid #3a3d45; border-radius: 4px; }
+      input.invalid { border-color: #d9534f; }
+      label { font-size: 11px; color: #9aa0aa; }
+      button { width: 100%; padding: 7px; margin: 4px 0; border: 0; border-radius: 5px; cursor: pointer; font-weight: 600; }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+      .primary { background: #2f5da6; color: #fff; }
+      .ghost { background: #2a2d34; color: #cfd3da; }
+      fieldset { border: 1px solid #3a3d45; border-radius: 6px; margin: 8px 0; padding: 8px 10px; transition: border-color 0.3s, box-shadow 0.3s; }
+      fieldset.flash { border-color: #2f5da6; box-shadow: 0 0 0 2px rgba(47, 93, 166, 0.45); }
+      legend { font-size: 11px; color: #9aa0aa; padding: 0 4px; }
+      .status { font-size: 12px; color: #cfd3da; }
+      .hint { font-size: 11px; color: #9aa0aa; margin: 2px 0 6px; }
+      .err { color: #e7918d; }
+      .toollist { max-height: 168px; overflow: auto; border: 1px solid #3a3d45; border-radius: 4px; padding: 6px; margin: 4px 0; }
+      .toolrow { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+      .toolrow input { width: auto; margin: 0; }
+      .toolname { font-family: ui-monospace, monospace; font-size: 12px; }
+      .tag { font-size: 10px; padding: 0 4px; border-radius: 3px; background: #3a3d45; color: #cfd3da; margin-left: 4px; }
+      .tag.write { background: #5a3a2a; color: #f0c0a0; }
+      .linkrow { display: flex; gap: 12px; font-size: 11px; margin: 2px 0; }
+      .linkrow a { color: #8ab4f8; cursor: pointer; text-decoration: underline; }
+      textarea { width: 100%; box-sizing: border-box; padding: 5px; margin: 2px 0 6px; background: #25272e; color: #e6e6e6; border: 1px solid #3a3d45; border-radius: 4px; font: 11px ui-monospace, monospace; }
+    </style>
+  </head>
+  <body>
+    <h1>Personal Agent</h1>
+    <div class="row"><span id="dot" class="dot"></span><span id="status" class="status">…</span></div>
+    <div class="status" id="device"></div>
+
+    <fieldset>
+      <legend data-i18n="instanceSettings">Instance settings</legend>
+      <div class="hint" data-i18n="instanceHint">Enter your Personal Agent server URL and Save — the OIDC issuer and client ID are fetched from the server automatically.</div>
+      <label data-i18n="serverUrlLabel">Server URL</label>
+      <input id="serverUrl" placeholder="https://pa.example.com" />
+      <details id="advanced">
+        <summary style="font-size:11px;color:#9aa0aa;cursor:pointer;margin:2px 0 6px;" data-i18n="advancedSummary">Advanced (override OIDC)</summary>
+        <label data-i18n="issuerLabel">OIDC issuer</label>
+        <input id="issuer" data-i18n-placeholder="issuerPlaceholder" placeholder="auto-discovered from server" />
+        <label data-i18n="clientIdLabel">Client ID</label>
+        <input id="clientId" placeholder="personal-agent-browser" />
+      </details>
+      <div class="hint err" id="cfgErr"></div>
+      <button id="save" class="ghost" data-i18n="saveSettings">Save settings</button>
+    </fieldset>
+
+    <fieldset>
+      <legend data-i18n="toolsLegend">Exposed tools &amp; safety</legend>
+      <div class="hint" data-i18n="toolsHint">
+        Uncheck a tool to hide it from the assistant entirely — it is neither announced nor
+        executed. Write tools can change pages.
+      </div>
+      <div class="linkrow"><a id="toolsAll" data-i18n="selectAll">Select all</a><a id="toolsNone" data-i18n="selectNone">Select none</a></div>
+      <div class="toollist" id="toolList"></div>
+      <label data-i18n="blockedHostsLabel">Additional blocked hosts (one per line)</label>
+      <textarea id="blockedHosts" rows="2" placeholder="bank.example.com"></textarea>
+      <div class="hint" data-i18n="blockedHostsHint">
+        The Personal Agent app origin and the OIDC issuer are always blocked, so the agent can
+        never drive them.
+      </div>
+      <button id="saveTools" class="ghost" data-i18n="saveToolsBtn">Save tool settings</button>
+      <div class="hint" id="toolsMsg"></div>
+    </fieldset>
+
+    <button id="login" class="primary" data-i18n="connect">Connect (sign in)</button>
+    <button id="logout" class="ghost" data-i18n="disconnect">Disconnect</button>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
