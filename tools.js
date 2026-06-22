@@ -9,6 +9,7 @@
 
 import * as cdp from "./cdp.js";
 import { api } from "./platform.js";
+import { hostOf, matchesBlockedOrigin } from "./urls.js";
 
 const PARAMS = {
   navigate: {
@@ -172,30 +173,7 @@ export function setBlockedOrigins(list) {
     .map((s) => String(s || "").trim())
     .filter(Boolean);
 }
-function hostOf(u) {
-  try {
-    return new URL(u).hostname.toLowerCase();
-  } catch {
-    return "";
-  }
-}
-function isBlockedUrl(url) {
-  let o = "";
-  try {
-    o = new URL(url).origin.toLowerCase();
-  } catch {
-    o = "";
-  }
-  const h = hostOf(url);
-  if (!o && !h) return false; // about:blank / chrome:// — Chrome already forbids scripting there
-  for (const b of blockedOrigins) {
-    const entry = b.toLowerCase();
-    if (o && o === entry) return true;
-    const bh = hostOf(entry.includes("://") ? entry : "https://" + entry);
-    if (bh && (h === bh || h.endsWith("." + bh))) return true;
-  }
-  return false;
-}
+const isBlockedUrl = (url) => matchesBlockedOrigin(url, blockedOrigins);
 function assertAllowed(url) {
   if (isBlockedUrl(url)) {
     throw new Error("blocked origin (Personal Agent extension settings): " + (hostOf(url) || url));
@@ -440,7 +418,14 @@ const HANDLERS = {
   },
 
   async browser_press({ key }) {
+    if (!key) throw new Error("key required");
     const tab = await activeTab();
+    // Debug mode: send a real (trusted) key event so framework-controlled widgets react, matching
+    // the click/type upgrade. Plain path falls back to a synthetic KeyboardEvent on the focus.
+    if (cdp.isAttached(tab.id)) {
+      await cdp.dispatchKey(tab.id, key);
+      return "pressed " + key + " (trusted)";
+    }
     await inPage(
       tab.id,
       (k) => {

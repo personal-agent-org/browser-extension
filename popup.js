@@ -1,4 +1,5 @@
 import { api } from "./platform.js";
+import { secureUrlKind } from "./urls.js";
 
 // Firefox's runtime.sendMessage returns a Promise (no callback arg); Chrome MV3's does too.
 function send(cmd, extra = {}) {
@@ -25,22 +26,12 @@ function localizeDom() {
 const statusText = (raw) => t("status_" + raw) || raw;
 
 // http is only acceptable for localhost; everything else must be https so the bearer/refresh
-// tokens never cross the network in clear. Returns "" when OK, else an error string.
+// tokens never cross the network in clear. Returns "" when OK, else a localized error string.
 function secureUrlError(v, label) {
-  let u;
-  try {
-    u = new URL(v);
-  } catch {
-    return t("urlInvalid", [label]);
-  }
-  const loopback =
-    u.hostname === "localhost" ||
-    u.hostname === "127.0.0.1" ||
-    u.hostname === "::1" ||
-    u.hostname === "[::1]" ||
-    u.hostname.endsWith(".localhost");
-  if (u.protocol === "https:" || (u.protocol === "http:" && loopback)) return "";
-  return t("urlInsecure", [label]);
+  const kind = secureUrlKind(v);
+  if (kind === "invalid") return t("urlInvalid", [label]);
+  if (kind === "insecure") return t("urlInsecure", [label]);
+  return "";
 }
 
 // Only the Server URL is required; the OIDC issuer is auto-discovered from the server
@@ -204,7 +195,14 @@ $("saveTools").addEventListener("click", async () => {
   setTimeout(() => ($("toolsMsg").textContent = ""), 2500);
 });
 
+// Event-driven instead of polling: the service worker writes connection state to storage.local,
+// so mirror those changes straight into the UI (no wasteful 2 s timer while the popup is open).
+api.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  const keys = ["status", "device_id", "serverUrl", "issuer", "clientId"];
+  if (keys.some((k) => k in changes)) refresh();
+});
+
 localizeDom();
 renderTools();
 refresh();
-setInterval(refresh, 2000);

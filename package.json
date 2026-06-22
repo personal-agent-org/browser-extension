@@ -3,9 +3,18 @@
   "version": "2026.6.0",
   "description": "Browser extension that connects your browser to Personal Agent as a secure device, so the assistant can read and drive pages.",
   "license": "MIT",
-  "private": false,
+  "private": true,
   "type": "module",
   "scripts": {
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "test": "node --test",
+    "lint": "eslint .",
+    "lint:ext": "npm run build && web-ext lint --source-dir dist/firefox"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "eslint": "^9.13.0",
+    "globals": "^15.11.0",
+    "web-ext": "^8.3.0"
   }
 }

@@ -1,0 +1,6 @@
+{
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0m6M/7hQ+g88/i50hYzMesgjpmxHqC+LtL5qRkb1yTWGluXYyAmBdOk/RVYaUANSRJrDnbfjrZq/Ff3qpFJJssqpYwCPziI+MC7pQeJzMAARq3XUshdcbznV55cotSwVsp7OEo7BuYFAtZ/wPys8Dg207yHpId3PEasl1piPAk0FBi+RE1fkLQkAcoQqZMK73fa0o6Az9B4LtVfW6SRYcXKuZOi91NN/tTln1oxNu1C2YDz/2DfIkJxXhOstgtfdxQ0NmANYgOZUHCbvaWXrP1qbvO9e1h0/tM42yebxBRPQdwM+Xp8fAA7oc8KRZRgmC6FWqPeg+sdghENQLyfNoQIDAQAB",
+  "minimum_chrome_version": "102",
+  "permissions": ["debugger"],
+  "background": { "service_worker": "background.js", "type": "module" }
+}

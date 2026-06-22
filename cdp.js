@@ -92,7 +92,8 @@ export async function ensureAttached(tabId) {
   return { justAttached: true };
 }
 
-export async function detach(tabId) {
+// Used internally on tab-close; not part of the module's public surface.
+async function detach(tabId) {
   attached.delete(tabId);
   buffers.delete(tabId);
   try {

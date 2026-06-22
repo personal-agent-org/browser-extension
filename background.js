@@ -11,6 +11,7 @@ import {
   setBlockedOrigins,
 } from "./tools.js";
 import { api, engineName } from "./platform.js";
+import { secureUrlKind } from "./urls.js";
 
 // No instance is baked in: a self-hoster configures these in the popup (persisted to
 // api.storage.local via getConfig()/saveConfig). serverUrl + issuer are REQUIRED
@@ -43,6 +44,7 @@ async function setTokens(patch) {
 // issuer + public browser client id (GET /api/v1/public/client-config) so the user
 // doesn't have to enter them by hand. Returns {issuer, clientId} on success.
 async function discoverConfig(serverUrl) {
+  requireSecure(serverUrl, "Server URL"); // never bootstrap discovery over cleartext
   const base = serverUrl.replace(/\/+$/, "");
   const r = await fetch(`${base}/api/v1/public/client-config`, { headers: { accept: "application/json" } });
   if (!r.ok) throw new Error(`discovery failed (HTTP ${r.status})`);
@@ -59,23 +61,14 @@ async function oidcConfig() {
 }
 
 // ---------- transport safety ----------
-function isLoopbackHost(h) {
-  return (
-    h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "[::1]" || h.endsWith(".localhost")
-  );
-}
 // Refuse cleartext for anything but localhost: the bearer token rides the WS subprotocol and the
 // OIDC exchange carries the (long-lived) refresh token — neither may cross the network in clear.
 function requireSecure(urlStr, label) {
-  let u;
-  try {
-    u = new URL(urlStr);
-  } catch {
-    throw new Error(`${label} is not a valid URL`);
+  const kind = secureUrlKind(urlStr);
+  if (kind === "invalid") throw new Error(`${label} is not a valid URL`);
+  if (kind === "insecure") {
+    throw new Error(`${label} must use https (http is only allowed for localhost)`);
   }
-  if (u.protocol === "https:") return;
-  if (u.protocol === "http:" && isLoopbackHost(u.hostname)) return;
-  throw new Error(`${label} must use https (http is only allowed for localhost)`);
 }
 
 // Push the user's exposure settings into the tools module before each connect / after a change:
@@ -389,7 +382,7 @@ async function handleFrame(sock, raw) {
 }
 
 function setStatus(s) {
-  api.storage.local.set({ status: s, status_at: Date.now() });
+  api.storage.local.set({ status: s });
 }
 
 // Keepalive: a closed socket gets reconnected; an active socket's ping/pong keeps the SW alive.

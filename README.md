@@ -16,15 +16,29 @@ then appears under *Settings → Devices* in the app — select it in a chat.
 ## Build
 
 ```bash
-node build.mjs    # writes dist/chrome and dist/firefox
+node build.mjs        # writes dist/chrome and dist/firefox (no dependencies needed)
 ```
 
-- **Chrome:** `chrome://extensions` → *Developer mode* → *Load unpacked* → `dist/chrome` (or this folder).
+- **Chrome:** `chrome://extensions` → *Developer mode* → *Load unpacked* → `dist/chrome`.
 - **Firefox:** `about:debugging` → *This Firefox* → *Load Temporary Add-on* → `dist/firefox/manifest.json`.
 
-`platform.js` selects the `browser`/`chrome` namespace; `_locales/` holds the WebExtension i18n
+Each `manifest.json` is assembled at build time from `manifest.base.json` (the shared fields) plus a
+per-target patch (`manifest.chrome.json` / `manifest.firefox.json`); the version comes from
+`package.json`, so it lives in a single place. `platform.js` selects the `browser`/`chrome`
+namespace; `urls.js` holds the shared URL/security helpers; `_locales/` holds the WebExtension i18n
 (`en` source, translated via Weblate). The Chrome DevTools-Protocol tools (`cdp.js`) are
 Chromium-only.
+
+## Develop
+
+```bash
+npm install           # eslint + web-ext (dev only)
+npm test              # node:test unit suite
+npm run lint          # eslint
+npm run lint:ext      # build + web-ext lint of the Firefox bundle
+```
+
+CI (`.github/workflows/ci.yml`) runs lint, tests and a build on every push and pull request.
 
 ## Documentation
 

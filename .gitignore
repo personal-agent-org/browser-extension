@@ -1,6 +1,9 @@
 # Build output assembled by build.mjs (Chrome + Firefox loadable/packable dirs).
 dist/
 
+# npm dev dependencies (eslint, web-ext) — installed in CI, never committed.
+node_modules/
+
 # Extension signing material — these pin the extension identity and must stay secret.
 *.pem
 *.crx
