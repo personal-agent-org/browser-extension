@@ -1,0 +1,19 @@
+# Run `prek install` (or `pre-commit install`) once, plus
+# `prek install --hook-type commit-msg` for the Conventional Commits check.
+# Enforces Conventional Commits + hygiene; eslint/tests run in CI and via `just check`.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: mixed-line-ending
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
