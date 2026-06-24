@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/logo.svg" alt="Personal Agent" width="128" />
+</p>
+
 # Personal Agent — Browser extension (Chrome + Firefox, MV3)
 
 Connects your browser to [Personal Agent](https://github.com/personal-agent-org) as a
