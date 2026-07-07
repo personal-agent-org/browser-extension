@@ -234,13 +234,11 @@ async function inMainWorld(tabId, func, args = []) {
 // In-page: resolve an element by selector/text, scroll it into view, and return its viewport
 // centre in CSS px (or null). Used to aim a trusted CDP mouse click in debug mode. Must be
 // self-contained — it is serialized and run via api.scripting.
-function locateCenter(sel, txt) {
+function locateCenter(sel, txt, clickable) {
   let el = null;
   if (sel) el = document.querySelector(sel);
   if (!el && txt) {
-    const cands = Array.from(
-      document.querySelectorAll("a,button,[role=button],input,textarea,select,[onclick],[role=link],[role=menuitem]"),
-    );
+    const cands = Array.from(document.querySelectorAll(clickable));
     const q = txt.toLowerCase();
     el = cands.find((e) =>
       (e.innerText || e.value || e.getAttribute("aria-label") || "").trim().toLowerCase().includes(q),
@@ -253,25 +251,13 @@ function locateCenter(sel, txt) {
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 }
 
-// Resolve once the tab finishes a FRESH navigation (event-driven, not status-polling — avoids
-// the stale 'complete' of the previous page). No new permission (tabs covers onUpdated).
+// Navigate the tab and resolve once the FRESH load completes (event-driven via waitForComplete,
+// not status-polling — avoids the stale 'complete' of the previous page). The listener is armed
+// BEFORE the navigation, so there is no race; a failed update tears it down.
 function navigateAndWait(tabId, url, timeoutMs = 15000) {
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      api.tabs.onUpdated.removeListener(onUpd);
-      clearTimeout(timer);
-      resolve();
-    };
-    const onUpd = (id, info, tab) => {
-      if (id === tabId && info.status === "complete" && !tab.pendingUrl) finish();
-    };
-    const timer = setTimeout(finish, timeoutMs);
-    api.tabs.onUpdated.addListener(onUpd);
-    api.tabs.update(tabId, { url }).catch(finish);
-  });
+  const wait = waitForComplete(tabId, timeoutMs);
+  api.tabs.update(tabId, { url }).catch(() => wait.cancel());
+  return wait.promise;
 }
 
 // Wait for the NEXT load to complete (history nav / reload — no URL change to drive it).
@@ -300,14 +286,40 @@ function waitForComplete(tabId, timeoutMs = 15000) {
 
 const _settle = (ms = 600) => new Promise((r) => setTimeout(r, ms));
 
+// The one clickable/interactive-element candidate list, shared by locateCenter (the trusted-click
+// path) and browser_click's DOM fallback so a text target resolves to the SAME element on both.
+const CLICKABLE =
+  "a,button,[role=button],input,textarea,select,[onclick],[role=link],[role=menuitem]";
+
+// {url,title} of a tab as the JSON string every navigation tool returns.
+async function tabInfo(tabId) {
+  const info = await api.tabs.get(tabId);
+  return JSON.stringify({ url: info.url, title: info.title });
+}
+
+// Run a history/reload navigation and resolve once the next load completes. On a rejected action
+// (goBack with no history, a failed reload) tear the waiter down and return emptyMsg, or rethrow
+// when no message is given.
+async function navWithWait(tabId, action, emptyMsg) {
+  const wait = waitForComplete(tabId);
+  try {
+    await action();
+  } catch (e) {
+    wait.cancel();
+    if (emptyMsg) return emptyMsg;
+    throw e;
+  }
+  await wait.promise;
+  return await tabInfo(tabId);
+}
+
 const HANDLERS = {
   async browser_navigate({ url }) {
     if (!url) throw new Error("url required");
     assertAllowed(url); // block navigating TO a protected origin
     const tab = await activeTab();
     await navigateAndWait(tab.id, url);
-    const info = await api.tabs.get(tab.id);
-    return JSON.stringify({ url: info.url, title: info.title });
+    return await tabInfo(tab.id);
   },
 
   async browser_get_page({ max_chars } = {}) {
@@ -342,20 +354,21 @@ const HANDLERS = {
           pt = null;
         }
       }
-      if (!pt) pt = await inPage(tab.id, locateCenter, [selector || null, text || null]);
+      if (!pt) pt = await inPage(tab.id, locateCenter, [selector || null, text || null, CLICKABLE]);
       if (!pt) throw new Error("element not found");
       await cdp.clickAt(tab.id, pt.x, pt.y);
       await _settle();
       return "clicked (trusted)";
     }
-    // Plain path (no debugger attached): synthetic DOM click.
+    // Plain path (no debugger attached): synthetic DOM click. Same CLICKABLE candidate list as the
+    // trusted path, so a text target resolves to the same element either way.
     const ok = await inPage(
       tab.id,
-      (sel, txt) => {
+      (sel, txt, clickable) => {
         let el = null;
         if (sel) el = document.querySelector(sel);
         if (!el && txt) {
-          const cands = Array.from(document.querySelectorAll("a,button,[role=button],input[type=submit],input[type=button]"));
+          const cands = Array.from(document.querySelectorAll(clickable));
           el = cands.find((e) => (e.innerText || e.value || "").trim().toLowerCase().includes(txt.toLowerCase()));
         }
         if (!el) return false;
@@ -363,7 +376,7 @@ const HANDLERS = {
         el.click();
         return true;
       },
-      [selector || null, text || null],
+      [selector || null, text || null, CLICKABLE],
     );
     if (!ok) throw new Error("element not found");
     await _settle(); // let a click-triggered navigation / SPA render settle (status may not flip)
@@ -507,44 +520,17 @@ const HANDLERS = {
 
   async browser_back() {
     const tab = await activeTab();
-    const wait = waitForComplete(tab.id);
-    try {
-      await api.tabs.goBack(tab.id);
-    } catch {
-      wait.cancel(); // no navigation happened — don't leave the listener hanging
-      return "no earlier history entry";
-    }
-    await wait.promise;
-    const info = await api.tabs.get(tab.id);
-    return JSON.stringify({ url: info.url, title: info.title });
+    return navWithWait(tab.id, () => api.tabs.goBack(tab.id), "no earlier history entry");
   },
 
   async browser_forward() {
     const tab = await activeTab();
-    const wait = waitForComplete(tab.id);
-    try {
-      await api.tabs.goForward(tab.id);
-    } catch {
-      wait.cancel();
-      return "no later history entry";
-    }
-    await wait.promise;
-    const info = await api.tabs.get(tab.id);
-    return JSON.stringify({ url: info.url, title: info.title });
+    return navWithWait(tab.id, () => api.tabs.goForward(tab.id), "no later history entry");
   },
 
   async browser_reload() {
     const tab = await activeTab();
-    const wait = waitForComplete(tab.id);
-    try {
-      await api.tabs.reload(tab.id);
-    } catch (e) {
-      wait.cancel();
-      throw e;
-    }
-    await wait.promise;
-    const info = await api.tabs.get(tab.id);
-    return JSON.stringify({ url: info.url, title: info.title });
+    return navWithWait(tab.id, () => api.tabs.reload(tab.id));
   },
 
   async browser_find({ text, role = "any", limit } = {}) {
