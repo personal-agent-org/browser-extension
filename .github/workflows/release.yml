@@ -1,0 +1,76 @@
+name: Release
+
+# CalVer (YYYY.M.MICRO). Run manually: MICRO is auto-computed as the next free number this month
+# from the existing vYYYY.M.* tags (override only if you must, via the optional input). Runs CI,
+# sets the version in package.json (which flows into each manifest.json), builds the Chrome +
+# Firefox bundles, zips them store-ready, tags vYYYY.M.MICRO, commits the bump to main and cuts a
+# GitHub Release with the ZIPs attached. Upload the ZIPs to the Chrome Web Store / Firefox AMO.
+on:
+  workflow_dispatch:
+    inputs:
+      micro:
+        description: "Override MICRO (leave empty to auto-compute the next number this month)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Compute CalVer
+        id: ver
+        run: |
+          prefix="$(date -u +%Y).$(date -u +%-m)"
+          micro="${{ github.event.inputs.micro }}"
+          if [ -z "$micro" ]; then
+            git fetch --tags --force --quiet || true
+            last=-1
+            for t in $(git tag -l "v${prefix}.*"); do
+              n="${t##v${prefix}.}"
+              case "$n" in ''|*[!0-9]*) continue ;; esac
+              [ "$n" -gt "$last" ] && last="$n"
+            done
+            micro=$(( last + 1 ))
+          fi
+          echo "version=${prefix}.${micro}" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - name: Set version + build store bundles
+        run: |
+          npm version "${{ steps.ver.outputs.version }}" --no-git-tag-version --allow-same-version
+          npm run build
+      - name: Zip store bundles
+        run: |
+          v="${{ steps.ver.outputs.version }}"
+          (cd dist/chrome && zip -qr -FS "../../personal-agent-chrome-${v}.zip" .)
+          (cd dist/firefox && zip -qr -FS "../../personal-agent-firefox-${v}.zip" .)
+      - name: Commit version bump to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(release): v${{ steps.ver.outputs.version }}"
+          git push origin HEAD:main
+      - name: Tag + GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="v${{ steps.ver.outputs.version }}"
+          git tag "$v"
+          git push origin "$v"
+          gh release create "$v" --title "$v" --generate-notes \
+            "personal-agent-chrome-${{ steps.ver.outputs.version }}.zip" \
+            "personal-agent-firefox-${{ steps.ver.outputs.version }}.zip"

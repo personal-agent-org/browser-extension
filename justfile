@@ -33,3 +33,8 @@ hooks:
 
 # Pre-PR gate (mirrors CI): lint + test + build
 check: lint test build
+
+# Cut a CalVer release (YYYY.M.MICRO) via GitHub Actions: builds the Chrome + Firefox bundles,
+# zips them and publishes a GitHub Release with the store-ready ZIPs. MICRO auto-computed.
+release:
+    gh workflow run release.yml
