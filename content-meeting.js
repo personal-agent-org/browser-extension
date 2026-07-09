@@ -114,7 +114,12 @@ function showBannerError(msg) {
 function startRecording() {
   if (!activeAdapter || recording) return;
   const title = sessionTitle || document.title || activeAdapter.name;
-  ext.runtime.sendMessage({ cmd: "meeting/start", platform: activeAdapter.name, title }, (resp) => {
+  // Platforms that can't attribute the active speaker from the DOM (e.g. OpenTalk) ask the
+  // offscreen capture to segment the tab audio itself so a transcript is still produced.
+  const attributesSpeakers = activeAdapter.attributesSpeakers !== false;
+  ext.runtime.sendMessage(
+    { cmd: "meeting/start", platform: activeAdapter.name, title, attributesSpeakers },
+    (resp) => {
     if (ext.runtime.lastError) {
       showBannerError(ext.runtime.lastError.message);
       return;

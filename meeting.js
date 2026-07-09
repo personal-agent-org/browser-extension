@@ -60,7 +60,7 @@ function toOffscreen(msg) {
   return api.runtime.sendMessage({ target: "offscreen", ...msg });
 }
 
-async function startSession(deps, sender, platform, title) {
+async function startSession(deps, sender, platform, title, attributesSpeakers) {
   // MV3 offscreen + tabCapture are Chromium-only; fail cleanly elsewhere (e.g. Firefox).
   if (!api.offscreen || !api.tabCapture?.getMediaStreamId) {
     return { ok: false, error: "Meeting capture requires a Chromium-based browser." };
@@ -100,6 +100,8 @@ async function startSession(deps, sender, platform, title) {
       sessionId: id,
       platform,
       title: title || "Meeting",
+      // When the platform can't attribute speakers, offscreen VADs the tab audio itself.
+      attributesSpeakers: attributesSpeakers !== false,
     },
   });
   return { ok: true, sessionId: id };
@@ -125,7 +127,9 @@ export function registerMeetingHandlers(deps) {
     (async () => {
       try {
         if (msg.cmd === "meeting/start") {
-          sendResponse(await startSession(deps, sender, msg.platform, msg.title));
+          sendResponse(
+            await startSession(deps, sender, msg.platform, msg.title, msg.attributesSpeakers),
+          );
         } else if (msg.cmd === "meeting/stop") {
           await stopSession();
           sendResponse({ ok: true });

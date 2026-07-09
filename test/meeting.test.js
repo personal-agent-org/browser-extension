@@ -37,11 +37,20 @@ test("bigbluebutton is detected by its user-list signature, not by hostname", ()
   assert.equal(a.name, "bigbluebutton");
 });
 
-test("opentalk is detected by its participant-list signature", () => {
+test("opentalk is detected by its participant-window signature", () => {
   const reg = globalThis.PAMeetingRegistry;
-  const win = fakeWin({}, ["ParticipantList"]);
+  const win = fakeWin({}, ["ParticipantWindow"]);
   const a = reg.detect(win);
   assert.equal(a.name, "opentalk");
+});
+
+test("adapters declare whether they attribute speakers from the DOM", () => {
+  const by = Object.fromEntries(globalThis.PAMeetingRegistry.all().map((a) => [a.name, a]));
+  // Jitsi (event hook) and BigBlueButton (data-test=isTalking) attribute real speakers.
+  assert.equal(by.jitsi.attributesSpeakers, true);
+  assert.equal(by.bigbluebutton.attributesSpeakers, true);
+  // OpenTalk keeps speaking state out of the DOM -> offscreen VAD segments the tab audio instead.
+  assert.equal(by.opentalk.attributesSpeakers, false);
 });
 
 test("every registered adapter exposes the common interface", () => {

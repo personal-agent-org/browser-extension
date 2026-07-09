@@ -38,16 +38,28 @@
   globalThis.PAMeetingRegistry = registry;
 
   // Shared factory for DOM-observed platforms (BigBlueButton, OpenTalk): detection is a CSS
-  // signature; speaker/join/leave are derived by diffing the "talking" indicator and the
-  // participant list on every DOM mutation. The framework is real; per-platform selectors are
-  // passed in (and are TODO constants where we could not inspect a live instance).
+  // signature; join/leave are derived by diffing the participant list on every DOM mutation, and
+  // speaker start/stop by diffing a "talking" indicator IF the platform exposes one in the DOM.
+  //
+  // `attributesSpeakers`: some platforms (BigBlueButton) mark the active speaker with a stable DOM
+  // attribute, so we can attribute each utterance to a name. Others (OpenTalk, a LiveKit app) keep
+  // the speaking state in JS only and filter it out of the DOM, so per-speaker attribution is not
+  // possible from a content script — such an adapter omits `talkingSelector` and sets
+  // `attributesSpeakers:false`, which tells the offscreen capture to segment the tab audio itself
+  // (energy VAD, generic "speaker" label) so a transcript is still produced.
+  //
+  // The talking indicator and the participant row often render the display name differently, so
+  // `talkingNameOf` / `participantNameOf` can be given separately (both fall back to `nameOf`).
   function makeDomAdapter(cfg) {
     const nameOf =
       cfg.nameOf ||
       ((el) => ((el && (el.getAttribute?.("data-name") || el.textContent)) || "").trim());
+    const talkingNameOf = cfg.talkingNameOf || nameOf;
+    const participantNameOf = cfg.participantNameOf || nameOf;
 
     return {
       name: cfg.name,
+      attributesSpeakers: cfg.attributesSpeakers !== false,
       _obs: null,
       detect(win) {
         try {
@@ -63,23 +75,27 @@
         let present = new Set();
 
         const scan = () => {
-          const nowTalking = new Set();
-          doc.querySelectorAll(cfg.talkingSelector).forEach((el) => {
-            const n = nameOf(el);
-            if (n) nowTalking.add(n);
-          });
-          for (const n of nowTalking) if (!talking.has(n)) emit.speaker("tab", n, "start");
-          for (const n of talking) if (!nowTalking.has(n)) emit.speaker("tab", n, "stop");
-          talking = nowTalking;
+          if (cfg.talkingSelector) {
+            const nowTalking = new Set();
+            doc.querySelectorAll(cfg.talkingSelector).forEach((el) => {
+              const n = talkingNameOf(el);
+              if (n) nowTalking.add(n);
+            });
+            for (const n of nowTalking) if (!talking.has(n)) emit.speaker("tab", n, "start");
+            for (const n of talking) if (!nowTalking.has(n)) emit.speaker("tab", n, "stop");
+            talking = nowTalking;
+          }
 
-          const nowPresent = new Set();
-          doc.querySelectorAll(cfg.participantSelector).forEach((el) => {
-            const n = nameOf(el);
-            if (n) nowPresent.add(n);
-          });
-          for (const n of nowPresent) if (!present.has(n)) emit.meta("join", n, "");
-          for (const n of present) if (!nowPresent.has(n)) emit.meta("leave", n, "");
-          present = nowPresent;
+          if (cfg.participantSelector) {
+            const nowPresent = new Set();
+            doc.querySelectorAll(cfg.participantSelector).forEach((el) => {
+              const n = participantNameOf(el);
+              if (n) nowPresent.add(n);
+            });
+            for (const n of nowPresent) if (!present.has(n)) emit.meta("join", n, "");
+            for (const n of present) if (!nowPresent.has(n)) emit.meta("leave", n, "");
+            present = nowPresent;
+          }
         };
 
         const obs = new MutationObserver(() => scan());

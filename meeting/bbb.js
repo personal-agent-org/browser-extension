@@ -1,19 +1,32 @@
 // BigBlueButton adapter (isolated content-script world).
 //
-// Built on the shared DOM-observer factory: real MutationObserver framework, per-platform
-// selectors below. bigbluebutton-html5 tags its UI with `data-test` attributes, but we could
-// NOT inspect a live instance here, so the exact selector strings are TODO constants. The
-// framework (detect + talking/participant diffing) is real; only these strings need verifying.
-//
-// Source to verify against: https://github.com/bigbluebutton/bigbluebutton
-//   bigbluebutton-html5/imports/ui/components/{user-list,nav-bar,...}
+// Real speaker attribution: BBB's bigbluebutton-html5 frontend marks UI with stable `data-test`
+// attributes. Selectors below are grounded in the upstream source:
+//   - user list container:  Styled.Content            data-test="userListContent"
+//       (imports/ui/components/user-list/user-list-content/component.jsx)
+//   - each participant row:  Styled.UserItemContents   data-test="userListItem" | "userListItemCurrent"
+//       carrying aria-label={user.name}  (…/user-participants/…/list-item/component.tsx)
+//   - active speaker:        Styled.TalkingIndicatorButton  data-test={talking ? "isTalking" : "wasTalking"}
+//       with the name as its label (imports/ui/components/nav-bar/…/talking-indicator/component.tsx)
+// The name is read from aria-label on the roster row (clean), and from the label text on the
+// talking pill (minus the visually-hidden "#description" span BBB nests while talking).
 (function () {
-  // TODO(bbb): confirm against bigbluebutton-html5. The user list panel is a stable signature.
-  const SIG_SELECTOR = "[data-test='userListContent'], [data-test='userList']";
-  // TODO(bbb): each participant row.
-  const PARTICIPANT_SELECTOR = "[data-test='userListItem']";
-  // TODO(bbb): BBB renders a talking indicator; verify its attribute/marker.
-  const TALKING_SELECTOR = "[data-test='talkingIndicatorElement'], [data-test='isTalking']";
+  const SIG_SELECTOR = "[data-test='userListContent']";
+  const PARTICIPANT_SELECTOR = "[data-test='userListItem'], [data-test='userListItemCurrent']";
+  const TALKING_SELECTOR = "[data-test='isTalking']";
+
+  // Roster row: the display name is a clean attribute.
+  const participantNameOf = (el) => (el?.getAttribute?.("aria-label") || "").trim();
+
+  // Talking pill: the visible label is the name; while talking BBB also nests a hidden
+  // <span id="description"> (mute hint) inside the button, so strip it from textContent.
+  const talkingNameOf = (el) => {
+    if (!el) return "";
+    let text = el.textContent || "";
+    const desc = el.querySelector?.("#description");
+    if (desc && desc.textContent) text = text.replace(desc.textContent, "");
+    return text.trim();
+  };
 
   globalThis.PAMeetingRegistry.register(
     globalThis.PAMeeting.makeDomAdapter({
@@ -21,15 +34,8 @@
       sigSelector: SIG_SELECTOR,
       participantSelector: PARTICIPANT_SELECTOR,
       talkingSelector: TALKING_SELECTOR,
-      // TODO(bbb): the display name typically lives in an aria-label / data-test-user-name.
-      nameOf: (el) =>
-        (
-          (el &&
-            (el.getAttribute?.("data-test-user-name") ||
-              el.getAttribute?.("aria-label") ||
-              el.textContent)) ||
-          ""
-        ).trim(),
+      participantNameOf,
+      talkingNameOf,
     }),
   );
 })();

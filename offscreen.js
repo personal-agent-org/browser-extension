@@ -114,7 +114,7 @@ function pushSamples(name, samples, inRate) {
   const chunkIn = Math.round(inRate * CHUNK_SEC);
   while (st.pending.length >= chunkIn) {
     const inChunk = st.pending.subarray(0, chunkIn);
-    if (name === "mic") micVad(st, inChunk);
+    if (st.vad) energyVad(st, inChunk, name, st.speakerLabel);
     const pcm = resampleToInt16(inChunk, inRate);
     const ts = st.outCount / OUT_RATE;
     st.outCount += pcm.length;
@@ -130,17 +130,20 @@ function pushSamples(name, samples, inRate) {
   }
 }
 
-// Local mic segmentation: energy threshold + hangover -> "Ich" speaker start/stop on the mic stream.
-function micVad(st, chunk) {
+// Energy-threshold + hangover segmentation for a stream that has no external speaker events.
+// Used for the local mic (label "Ich") and for the tab stream on platforms that can't attribute
+// the active speaker (label "Sprecher") -> emits generic speaker start/stop so the tab audio is
+// segmented into utterances instead of being dropped.
+function energyVad(st, chunk, stream, label) {
   const level = rms(chunk);
   const ts = nowTs();
   if (level >= MIC_VAD_RMS) st.lastVoice = ts;
   if (!st.speaking && level >= MIC_VAD_RMS) {
     st.speaking = true;
-    sendFrame({ t: "speaker", session: config.sessionId, stream: "mic", speaker: "Ich", event: "start", ts });
+    sendFrame({ t: "speaker", session: config.sessionId, stream, speaker: label, event: "start", ts });
   } else if (st.speaking && ts - (st.lastVoice || 0) > MIC_VAD_HANGOVER) {
     st.speaking = false;
-    sendFrame({ t: "speaker", session: config.sessionId, stream: "mic", speaker: "Ich", event: "stop", ts });
+    sendFrame({ t: "speaker", session: config.sessionId, stream, speaker: label, event: "stop", ts });
   }
 }
 
@@ -153,8 +156,16 @@ async function getTabStream(streamId) {
   });
 }
 
-async function wireStream(name, media, { playback }) {
-  streams[name] = { seq: 0, outCount: 0, pending: new Float32Array(0), speaking: false, lastVoice: 0 };
+async function wireStream(name, media, { playback, vad = false, label = "" }) {
+  streams[name] = {
+    seq: 0,
+    outCount: 0,
+    pending: new Float32Array(0),
+    speaking: false,
+    lastVoice: 0,
+    vad,
+    speakerLabel: label,
+  };
   mediaStreams.push(media);
   const source = audioCtx.createMediaStreamSource(media);
   const inRate = audioCtx.sampleRate;
@@ -189,10 +200,16 @@ async function start(streamId) {
     }
   }
   const tab = await getTabStream(streamId);
-  await wireStream("tab", tab, { playback: true });
+  // Platforms that attribute speakers send real speaker events from the content script; those that
+  // can't (attributesSpeakers === false) rely on VAD here to segment the tab audio generically.
+  await wireStream("tab", tab, {
+    playback: true,
+    vad: config.attributesSpeakers === false,
+    label: "Sprecher",
+  });
   try {
     const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
-    await wireStream("mic", mic, { playback: false });
+    await wireStream("mic", mic, { playback: false, vad: true, label: "Ich" });
   } catch {
     /* mic denied/unavailable: tab-only capture still works */
   }

@@ -27,6 +27,7 @@
 
   globalThis.PAMeetingRegistry.register({
     name: "jitsi",
+    attributesSpeakers: true, // real speaker events via the page-context hook
     detect(win) {
       try {
         // Page globals (visible when a test injects them, or in same-world contexts)...
