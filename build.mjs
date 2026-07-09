@@ -16,6 +16,11 @@ const SHARED = [
   "urls.js",
   "popup.html",
   "popup.js",
+  "meeting.js",
+  "content-meeting.js",
+  "offscreen.html",
+  "offscreen.js",
+  "meeting",
   "icons",
   "_locales",
 ];

@@ -12,6 +12,7 @@ import {
 } from "./tools.js";
 import { api, engineName } from "./platform.js";
 import { secureUrlKind } from "./urls.js";
+import { registerMeetingHandlers } from "./meeting.js";
 
 // No instance is baked in: a self-hoster configures these in the popup (persisted to
 // api.storage.local via getConfig()/saveConfig). serverUrl + issuer are REQUIRED
@@ -473,5 +474,9 @@ api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   })();
   return true; // async response
 });
+
+// Meeting capture (tab+mic audio -> offscreen doc -> /api/v1/ws/meeting). Reuses this SW's
+// token + config plumbing; Chromium-only (guarded inside on non-offscreen browsers).
+registerMeetingHandlers({ freshAccessToken, getConfig });
 
 connect();

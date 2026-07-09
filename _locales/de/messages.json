@@ -61,5 +61,14 @@
   "status_disconnected": { "message": "getrennt" },
   "status_error": { "message": "Fehler" },
   "status_signin_required": { "message": "Anmeldung erforderlich — auf Verbinden klicken" },
-  "status_not_configured": { "message": "Nicht konfiguriert — Einstellungen ausfüllen & speichern" }
+  "status_not_configured": { "message": "Nicht konfiguriert — Einstellungen ausfüllen & speichern" },
+  "meetingDetected": { "message": "Meeting erkannt - mit Personal Agent mitschreiben?" },
+  "meetingConsent": {
+    "message": "Dabei werden Tab- und Mikrofon-Audio aufgezeichnet und zur Transkription an deinen Personal Agent gesendet. Bitte informiere alle Teilnehmenden."
+  },
+  "meetingRecordBtn": { "message": "Aufzeichnen" },
+  "meetingCloseBtn": { "message": "Schließen" },
+  "meetingRecording": { "message": "Aufnahme läuft" },
+  "meetingStopBtn": { "message": "Stopp" },
+  "meetingUnsupported": { "message": "Aufnahme konnte nicht gestartet werden." }
 }

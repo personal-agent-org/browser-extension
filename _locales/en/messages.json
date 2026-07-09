@@ -140,5 +140,33 @@
   "status_not_configured": {
     "message": "Not configured — fill in & save settings",
     "description": "Connection status when the server isn't configured yet."
+  },
+  "meetingDetected": {
+    "message": "Meeting detected - take notes with Personal Agent?",
+    "description": "Banner headline shown when a meeting platform is detected on the page."
+  },
+  "meetingConsent": {
+    "message": "This records the meeting audio (tab + your microphone) and sends it to your Personal Agent for transcription. Everyone should be informed.",
+    "description": "Recording-consent notice shown in the meeting banner."
+  },
+  "meetingRecordBtn": {
+    "message": "Record",
+    "description": "Button that starts meeting capture."
+  },
+  "meetingCloseBtn": {
+    "message": "Close",
+    "description": "Button that dismisses the meeting banner without recording."
+  },
+  "meetingRecording": {
+    "message": "Recording in progress",
+    "description": "Live state label while a meeting is being captured."
+  },
+  "meetingStopBtn": {
+    "message": "Stop",
+    "description": "Button that stops meeting capture."
+  },
+  "meetingUnsupported": {
+    "message": "Meeting capture could not be started.",
+    "description": "Error shown when capture cannot start (e.g. non-Chromium browser or denied permission)."
   }
 }
