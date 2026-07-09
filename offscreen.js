@@ -48,6 +48,19 @@ function openWs() {
     for (const j of sendQueue) ws.send(j);
     sendQueue = [];
   };
+  ws.onmessage = (ev) => {
+    // The backend replies once with {t:"provisioned", chat_id} so we can open the live
+    // meeting surface. Offscreen docs have no tabs API, so relay it to the SW to open.
+    let data;
+    try {
+      data = JSON.parse(ev.data);
+    } catch {
+      return;
+    }
+    if (data?.t === "provisioned" && data.chat_id) {
+      api.runtime.sendMessage({ cmd: "meeting/provisioned", chatId: String(data.chat_id) });
+    }
+  };
   ws.onclose = () => {
     wsOpen = false;
   };

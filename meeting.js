@@ -139,6 +139,15 @@ export function registerMeetingHandlers(deps) {
             });
           }
           sendResponse({ ok: true });
+        } else if (msg.cmd === "meeting/provisioned") {
+          // Relayed from the offscreen WS: open the live meeting surface once per session.
+          if (session && !session.surfaceOpened && msg.chatId) {
+            session.surfaceOpened = true;
+            const cfg = await deps.getConfig();
+            const base = (cfg.serverUrl || "").replace(/\/+$/, "");
+            if (base) api.tabs?.create?.({ url: `${base}/chats/${msg.chatId}` });
+          }
+          sendResponse({ ok: true });
         } else if (msg.cmd === "meeting/meta") {
           if (session) {
             await toOffscreen({ type: "meta", kind: msg.kind, name: msg.name, text: msg.text });
