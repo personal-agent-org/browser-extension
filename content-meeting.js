@@ -38,8 +38,10 @@ function ensureBanner() {
   if (bannerHost) return bannerHost.shadowRoot;
   bannerHost = document.createElement("div");
   bannerHost.id = "pa-meeting-banner-host";
+  // `all:initial` MUST come first: it resets every property, so declaring it last would wipe the
+  // position/z-index below and the banner would flow inline (BBB then paints over it). Order wins.
   bannerHost.style.cssText =
-    "position:fixed;top:16px;right:16px;z-index:2147483647;all:initial;";
+    "all:initial;position:fixed;top:16px;right:16px;z-index:2147483647;isolation:isolate;";
   const root = bannerHost.attachShadow({ mode: "open" });
   document.documentElement.appendChild(bannerHost);
   return root;
