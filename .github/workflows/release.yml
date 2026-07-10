@@ -4,7 +4,8 @@ name: Release
 # from the existing vYYYY.M.* tags (override only if you must, via the optional input). Runs CI,
 # sets the version in package.json (which flows into each manifest.json), builds the Chrome +
 # Firefox bundles, zips them store-ready, tags vYYYY.M.MICRO, commits the bump to main and cuts a
-# GitHub Release with the ZIPs attached. Upload the ZIPs to the Chrome Web Store / Firefox AMO.
+# GitHub Release with the ZIPs attached, then (optionally) auto-publishes the Chrome ZIP to the
+# Chrome Web Store via the official API. Firefox AMO stays manual.
 on:
   workflow_dispatch:
     inputs:
@@ -12,6 +13,10 @@ on:
         description: "Override MICRO (leave empty to auto-compute the next number this month)"
         required: false
         default: ""
+      publish_chrome:
+        description: "Publish the Chrome ZIP to the Web Store (needs CWS_* secrets)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -23,6 +28,8 @@ jobs:
   release:
     needs: ci
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,3 +81,53 @@ jobs:
           gh release create "$v" --title "$v" --generate-notes \
             "personal-agent-chrome-${{ steps.ver.outputs.version }}.zip" \
             "personal-agent-firefox-${{ steps.ver.outputs.version }}.zip"
+
+  # Auto-publish the Chrome ZIP to the Web Store via the official API (curl only, no third-party
+  # action in the credential path). Skips gracefully if the CWS_* secrets are absent, so a release
+  # never breaks before they are configured. Firefox AMO stays manual.
+  publish-chrome:
+    needs: release
+    if: ${{ inputs.publish_chrome }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the Chrome store ZIP from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "v${{ needs.release.outputs.version }}" \
+            -R "${{ github.repository }}" -p "personal-agent-chrome-*.zip" -D .
+      - name: Upload + publish to the Chrome Web Store
+        env:
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          # Public store id; override with a secret for a fork.
+          APP_ID: ${{ secrets.CWS_APP_ID || 'adbdjcoeniffkccejdnmmadhilncdadd' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLIENT_ID:-}" ] || [ -z "${CLIENT_SECRET:-}" ] || [ -z "${REFRESH_TOKEN:-}" ]; then
+            echo "::warning::CWS_* secrets not set - skipping Chrome Web Store publish."
+            exit 0
+          fi
+          zip=$(ls personal-agent-chrome-*.zip | head -1)
+          echo "Publishing $zip to item $APP_ID"
+          # 1) access token from the long-lived refresh token
+          token=$(curl -sf -X POST https://oauth2.googleapis.com/token \
+            -d client_id="$CLIENT_ID" -d client_secret="$CLIENT_SECRET" \
+            -d refresh_token="$REFRESH_TOKEN" -d grant_type=refresh_token | jq -r '.access_token // empty')
+          [ -n "$token" ] || { echo "::error::could not obtain an access token (check CWS_* secrets)"; exit 1; }
+          # 2) upload the new package to the existing item
+          up=$(curl -s -X PUT -T "$zip" \
+            -H "Authorization: Bearer $token" -H "x-goog-api-version: 2" \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$APP_ID")
+          echo "upload response: $up"
+          [ "$(echo "$up" | jq -r '.uploadState // empty')" = "SUCCESS" ] \
+            || { echo "::error::upload failed: $(echo "$up" | jq -c '.itemError // .')"; exit 1; }
+          # 3) submit for publishing (Google review -> live)
+          pub=$(curl -s -X POST -H "Authorization: Bearer $token" -H "x-goog-api-version: 2" \
+            -H "Content-Length: 0" \
+            "https://www.googleapis.com/chromewebstore/v1.1/items/$APP_ID/publish")
+          echo "publish response: $pub"
+          echo "$pub" | jq -e 'any(.status[]?; . == "OK" or . == "ITEM_PENDING_REVIEW")' >/dev/null \
+            || { echo "::error::publish failed: $pub"; exit 1; }
+          echo "::notice::Chrome Web Store submission accepted (pending Google review)."
