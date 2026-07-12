@@ -14,7 +14,15 @@ export default [
   },
   {
     // Extension runtime: service worker + injected/page code + WebExtension namespaces.
-    files: ["background.js", "tools.js", "cdp.js", "platform.js", "urls.js", "meeting.js"],
+    files: [
+      "background.js",
+      "tools.js",
+      "cdp.js",
+      "platform.js",
+      "urls.js",
+      "auth.js",
+      "meeting.js",
+    ],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",

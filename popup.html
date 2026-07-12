@@ -31,12 +31,23 @@
       .linkrow { display: flex; gap: 12px; font-size: 11px; margin: 2px 0; }
       .linkrow a { color: #8ab4f8; cursor: pointer; text-decoration: underline; }
       textarea { width: 100%; box-sizing: border-box; padding: 5px; margin: 2px 0 6px; background: #25272e; color: #e6e6e6; border: 1px solid #3a3d45; border-radius: 4px; font: 11px ui-monospace, monospace; }
+      .codebox { display: none; border: 1px solid #2f5da6; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+      .usercode { font-family: ui-monospace, monospace; font-size: 20px; letter-spacing: 2px; text-align: center; margin: 4px 0; color: #fff; }
+      .verifyuri { font-size: 11px; color: #9aa0aa; word-break: break-all; text-align: center; }
     </style>
   </head>
   <body>
     <h1>Personal Agent</h1>
     <div class="row"><span id="dot" class="dot"></span><span id="status" class="status">…</span></div>
     <div class="status" id="device"></div>
+
+    <!-- Device grant (local auth mode): the activation page opens in a tab with the code
+         prefilled; this is the fallback so the user can type it there by hand. -->
+    <div class="codebox" id="deviceCode">
+      <div class="hint" data-i18n="deviceCodePrompt">Approve this device in the tab that opened, or enter this code:</div>
+      <div class="usercode" id="userCode"></div>
+      <div class="verifyuri" id="verifyUri"></div>
+    </div>
 
     <fieldset>
       <legend data-i18n="instanceSettings">Instance settings</legend>

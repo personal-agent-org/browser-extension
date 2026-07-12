@@ -34,35 +34,49 @@ function secureUrlError(v, label) {
   return "";
 }
 
-// Only the Server URL is required; the OIDC issuer is auto-discovered from the server
-// on Save (the Advanced fields are optional overrides).
+// Only the Server URL is required; the auth mode, OIDC issuer and client id are auto-discovered
+// from the server on Save (the Advanced fields are optional overrides).
 function configValid() {
   return secureUrlError($("serverUrl").value.trim(), "Server URL") === "";
 }
 
-// Connect stays disabled until a valid server URL is saved AND an issuer is known
+// The deployment's auth mode, as last reported by the service worker ("oidc" | "local"). In local
+// mode there is no Keycloak at all, so an issuer is neither needed nor required for Connect.
+let authMode = "oidc";
+
+// Connect stays disabled until a valid server URL is saved AND - in oidc mode - an issuer is known
 // (discovered or entered manually); reflect validity inline.
 function reflectConfig() {
   const su = $("serverUrl");
   const is = $("issuer");
   su.classList.toggle("invalid", su.value.trim() !== "" && secureUrlError(su.value.trim(), "x") !== "");
   is.classList.toggle("invalid", is.value.trim() !== "" && secureUrlError(is.value.trim(), "x") !== "");
-  $("login").disabled = !(
-    configValid() &&
-    is.value.trim() !== "" &&
-    secureUrlError(is.value.trim(), "x") === ""
-  );
+  const issuerOk =
+    authMode === "local" ||
+    (is.value.trim() !== "" && secureUrlError(is.value.trim(), "x") === "");
+  $("login").disabled = !(configValid() && issuerOk);
 }
 
 async function refresh() {
   const s = await send("status");
   const dot = $("dot");
   const raw = s.status || "idle";
+  authMode = s.authMode === "local" ? "local" : "oidc";
   dot.className = "dot " + raw;
   $("status").textContent = statusText(raw);
   $("device").textContent = s.device_id
     ? t("deviceLabel", [s.device_id.slice(0, 8) + "…"])
     : t("notRegistered");
+  // Device grant (local mode) in flight: show the user code so it can also be typed by hand on
+  // the activation page (which we opened in a tab with the code prefilled).
+  const codeBox = $("deviceCode");
+  if (s.user_code) {
+    $("userCode").textContent = s.user_code;
+    $("verifyUri").textContent = s.verification_uri || "";
+    codeBox.style.display = "block";
+  } else {
+    codeBox.style.display = "none";
+  }
   // Only overwrite a field the user isn't actively editing, so typing isn't clobbered.
   if (document.activeElement !== $("serverUrl")) $("serverUrl").value = s.serverUrl || "";
   if (document.activeElement !== $("issuer")) $("issuer").value = s.issuer || "";
@@ -89,22 +103,30 @@ $("save").addEventListener("click", async () => {
       return;
     }
   }
-  // No manual issuer override → ask the server for it (only the URL is required).
-  if (!issuer) {
-    $("status").textContent = t("discovering");
-    const d = await send("discover", { serverUrl });
-    if (!d?.ok) {
-      $("cfgErr").textContent = t("discoverFailed", [d?.error || "unknown"]);
-      $("status").textContent = t("status_not_configured");
-      return;
-    }
-    issuer = d.issuer;
-    clientId = clientId || d.clientId;
-    $("issuer").value = issuer;
-    $("clientId").value = clientId;
+  // Always ask the server how it authenticates (only the URL is required): the auth mode decides
+  // which login flow runs, and in local mode there is no issuer to fill in at all. A manual issuer
+  // override still wins, and it keeps working when discovery fails (then we assume oidc).
+  $("status").textContent = t("discovering");
+  const d = await send("discover", { serverUrl });
+  if (!d?.ok && !issuer) {
+    $("cfgErr").textContent = t("discoverFailed", [d?.error || "unknown"]);
+    $("status").textContent = t("status_not_configured");
+    return;
   }
+  authMode = d?.ok && d.authMode === "local" ? "local" : "oidc";
+  issuer = issuer || (d?.ok ? d.issuer : "");
+  clientId = clientId || (d?.ok ? d.clientId : "") || "personal-agent-browser";
+  $("issuer").value = issuer;
+  $("clientId").value = clientId;
   await send("saveConfig", {
-    config: { serverUrl, issuer, clientId: clientId || "personal-agent-browser" },
+    config: {
+      serverUrl,
+      authMode,
+      issuer,
+      clientId,
+      deviceAuthEndpoint: (d?.ok && d.deviceAuthEndpoint) || "",
+      deviceTokenEndpoint: (d?.ok && d.deviceTokenEndpoint) || "",
+    },
   });
   $("status").textContent = t("saved");
   reflectConfig();
@@ -199,7 +221,7 @@ $("saveTools").addEventListener("click", async () => {
 // so mirror those changes straight into the UI (no wasteful 2 s timer while the popup is open).
 api.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
-  const keys = ["status", "device_id", "serverUrl", "issuer", "clientId"];
+  const keys = ["status", "device_id", "serverUrl", "issuer", "clientId", "authMode", "user_code"];
   if (keys.some((k) => k in changes)) refresh();
 });
 

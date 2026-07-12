@@ -141,6 +141,14 @@
     "message": "Not configured — fill in & save settings",
     "description": "Connection status when the server isn't configured yet."
   },
+  "status_awaiting_approval": {
+    "message": "Waiting for approval — confirm the code",
+    "description": "Connection status while the device-grant sign-in waits for the user to approve the code."
+  },
+  "deviceCodePrompt": {
+    "message": "Approve this device in the tab that opened, or enter this code:",
+    "description": "Instruction above the device-grant user code shown during a local-mode sign-in."
+  },
   "meetingDetected": {
     "message": "Meeting detected - take notes with Personal Agent?",
     "description": "Banner headline shown when a meeting platform is detected on the page."

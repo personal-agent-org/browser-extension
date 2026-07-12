@@ -1,5 +1,6 @@
 // Personal Agent browser device — MV3 service worker.
-// Authenticates the user (Keycloak OIDC + PKCE), registers a kind=browser device, then holds a
+// Authenticates the user (mode-agnostic: Keycloak OIDC + PKCE, or the backend's own local IdP via
+// the RFC 8628 device grant: see auth.js), registers a kind=browser device, then holds a
 // WebSocket to the backend's device gateway: announces browser_* tools and serves rpc_call
 // frames by driving the active tab (see tools.js). Protocol mirrors the Rust device-agent.
 
@@ -13,14 +14,28 @@ import {
 import { api, engineName } from "./platform.js";
 import { secureUrlKind } from "./urls.js";
 import { registerMeetingHandlers } from "./meeting.js";
+import {
+  AuthError,
+  DEFAULT_CLIENT_ID,
+  createSingleFlightRefresh,
+  parseClientConfig,
+  pollDeviceToken,
+  resolveDeviceEndpoints,
+  startDeviceAuthorization,
+  tokenPatch,
+} from "./auth.js";
 
 // No instance is baked in: a self-hoster configures these in the popup (persisted to
-// api.storage.local via getConfig()/saveConfig). serverUrl + issuer are REQUIRED
-// before connect; clientId defaults to the realm's public browser client.
+// api.storage.local via getConfig()/saveConfig). serverUrl is REQUIRED before connect;
+// the rest (auth mode, issuer, client id, device-grant endpoints) is discovered from the
+// server's /api/v1/public/client-config. `issuer` only exists in oidc mode.
 const DEFAULTS = {
   serverUrl: "",
+  authMode: "oidc",
   issuer: "",
-  clientId: "personal-agent-browser",
+  clientId: DEFAULT_CLIENT_ID,
+  deviceAuthEndpoint: "",
+  deviceTokenEndpoint: "",
 };
 const AGENT_VERSION = api.runtime.getManifest().version;
 
@@ -31,7 +46,14 @@ let backoff = 1000;
 
 // ---------- config + token storage ----------
 async function getConfig() {
-  const c = await api.storage.local.get(["serverUrl", "issuer", "clientId"]);
+  const c = await api.storage.local.get([
+    "serverUrl",
+    "authMode",
+    "issuer",
+    "clientId",
+    "deviceAuthEndpoint",
+    "deviceTokenEndpoint",
+  ]);
   return { ...DEFAULTS, ...c };
 }
 async function getTokens() {
@@ -41,17 +63,15 @@ async function setTokens(patch) {
   await api.storage.local.set(patch);
 }
 
-// Bootstrap discovery: given only the Server URL, ask the deployment for its OIDC
-// issuer + public browser client id (GET /api/v1/public/client-config) so the user
-// doesn't have to enter them by hand. Returns {issuer, clientId} on success.
+// Bootstrap discovery: given only the Server URL, ask the deployment how it authenticates
+// (GET /api/v1/public/client-config) so the user doesn't have to enter anything by hand:
+// auth mode, OIDC issuer + public browser client id, and the device-grant endpoints.
 async function discoverConfig(serverUrl) {
   requireSecure(serverUrl, "Server URL"); // never bootstrap discovery over cleartext
   const base = serverUrl.replace(/\/+$/, "");
   const r = await fetch(`${base}/api/v1/public/client-config`, { headers: { accept: "application/json" } });
   if (!r.ok) throw new Error(`discovery failed (HTTP ${r.status})`);
-  const c = await r.json();
-  if (!c.oidc_issuer) throw new Error("server returned no oidc_issuer");
-  return { issuer: c.oidc_issuer, clientId: c.browser_client_id || DEFAULTS.clientId };
+  return parseClientConfig(await r.json());
 }
 
 async function oidcConfig() {
@@ -59,6 +79,19 @@ async function oidcConfig() {
   const r = await fetch(`${issuer}/.well-known/openid-configuration`);
   if (!r.ok) throw new Error("OIDC discovery failed");
   return await r.json();
+}
+
+// The token endpoint for the configured mode. Both modes refresh with grant_type=refresh_token;
+// in local mode the device-grant token endpoint serves the refresh grant too.
+async function tokenEndpoint(cfg) {
+  if (cfg.authMode === "local") return resolveDeviceEndpoints(cfg).deviceToken;
+  return (await oidcConfig()).token_endpoint;
+}
+
+// Is the deployment configured enough to sign in / connect? In oidc mode the issuer is required
+// (that IS the IdP); in local mode there is no Keycloak, so a server URL is all we need.
+function isConfigured(cfg) {
+  return !!cfg.serverUrl && (cfg.authMode === "local" || !!cfg.issuer);
 }
 
 // ---------- transport safety ----------
@@ -100,14 +133,58 @@ async function pkce() {
   return { verifier, challenge };
 }
 
-// Interactive login via the OAuth2 auth-code + PKCE flow (chrome.identity).
+// The ONE public login entry point. Callers (popup, keepalive) never care which IdP the
+// deployment runs: the mode picked at discovery decides which flow runs, both end with a token
+// pair in storage + a connected device socket.
 async function login() {
   const cfg = await getConfig();
-  if (!cfg.serverUrl || !cfg.issuer) {
-    throw new Error("Configure Server URL and OIDC issuer in Settings first");
-  }
+  if (!isConfigured(cfg)) throw new Error("Configure the Server URL in Settings first");
   requireSecure(cfg.serverUrl, "Server URL");
-  requireSecure(cfg.issuer, "OIDC issuer");
+  if (cfg.issuer) requireSecure(cfg.issuer, "OIDC issuer");
+  const t = cfg.authMode === "local" ? await deviceGrantLogin(cfg) : await pkceLogin(cfg);
+  await storeToken(t);
+  await connect();
+  return true;
+}
+
+// local mode: OAuth 2.0 Device Authorization Grant (RFC 8628). No authorization endpoint and no
+// redirect exist here, so we get a user_code, send the user to the SPA's /activate page (the code
+// is prefilled in verification_uri_complete; the popup also shows it for manual entry) and poll.
+async function deviceGrantLogin(cfg) {
+  const { deviceAuthorization, deviceToken } = resolveDeviceEndpoints(cfg);
+  requireSecure(deviceAuthorization, "Device authorization endpoint");
+  requireSecure(deviceToken, "Device token endpoint");
+  const d = await startDeviceAuthorization({
+    fetchImpl: fetch,
+    endpoint: deviceAuthorization,
+    clientId: cfg.clientId,
+  });
+  await api.storage.local.set({ user_code: d.userCode, verification_uri: d.verificationUri });
+  setStatus("awaiting_approval");
+  if (d.verificationUriComplete) {
+    try {
+      await api.tabs.create({ url: d.verificationUriComplete });
+    } catch {
+      /* no tab (e.g. no window open): the popup still shows the code + URL */
+    }
+  }
+  try {
+    return await pollDeviceToken({
+      fetchImpl: fetch,
+      endpoint: deviceToken,
+      clientId: cfg.clientId,
+      deviceCode: d.deviceCode,
+      interval: d.interval, // honour the server's interval; pollDeviceToken backs off on slow_down
+      expiresIn: d.expiresIn,
+      sleep: (ms) => new Promise((res) => setTimeout(res, ms)),
+    });
+  } finally {
+    await api.storage.local.remove(["user_code", "verification_uri"]);
+  }
+}
+
+// oidc mode: interactive login via the OAuth2 auth-code + PKCE flow (chrome.identity).
+async function pkceLogin(cfg) {
   const oidc = await oidcConfig();
   const redirect = api.identity.getRedirectURL();
   const { verifier, challenge } = await pkce();
@@ -136,69 +213,43 @@ async function login() {
     body,
   });
   if (!r.ok) throw new Error("token exchange failed: " + r.status);
-  const t = await r.json();
-  await storeToken(t);
-  await connect();
-  return true;
+  return await r.json();
 }
 
 async function storeToken(t) {
-  await setTokens({
-    access_token: t.access_token,
-    refresh_token: t.refresh_token || (await getTokens()).refresh_token,
-    expires_at: Date.now() + (t.expires_in || 60) * 1000 - 15000,
-  });
+  await setTokens(tokenPatch(t, (await getTokens()).refresh_token));
 }
 
+// One shared refresher for BOTH modes (only the endpoint differs). Refresh tokens are single-use
+// and rotated, and replaying a rotated one is treated as theft (it revokes every session of the
+// user), so concurrent callers must never each send the stored token: createSingleFlightRefresh
+// collapses them onto one request and persists the rotated pair before handing the token out.
+const refreshTokens = createSingleFlightRefresh({
+  fetchImpl: (...a) => fetch(...a),
+  getSession: async () => {
+    const cfg = await getConfig();
+    const { refresh_token } = await getTokens();
+    return { endpoint: await tokenEndpoint(cfg), clientId: cfg.clientId, refreshToken: refresh_token };
+  },
+  saveTokens: setTokens,
+});
+
 async function freshAccessToken() {
-  const { access_token, refresh_token, expires_at } = await getTokens();
+  const { access_token, expires_at } = await getTokens();
   if (access_token && expires_at && Date.now() < expires_at) return access_token;
-  if (!refresh_token) {
-    setStatus("signin_required");
-    return null;
-  }
-  const cfg = await getConfig();
-  let oidc;
   try {
-    oidc = await oidcConfig();
-  } catch {
-    setStatus("error: discovery failed");
-    return null;
-  }
-  let r;
-  try {
-    r = await fetch(oidc.token_endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token,
-        client_id: cfg.clientId,
-      }),
-    });
-  } catch {
-    setStatus("error: refresh failed");
-    return null; // transient — keepalive will retry; tokens kept
-  }
-  if (!r.ok) {
-    // invalid_grant = refresh token expired/revoked/rotated → require interactive re-login.
-    let err = "";
-    try {
-      err = (await r.json()).error || "";
-    } catch {
-      /* non-JSON body */
-    }
-    if (err === "invalid_grant") {
+    return await refreshTokens();
+  } catch (e) {
+    const code = e instanceof AuthError ? e.code : "error";
+    if (code === "signin_required" || code === "invalid_grant") {
+      // No / expired / revoked / already-rotated refresh token → interactive re-login.
       await api.storage.local.remove(["access_token", "refresh_token", "expires_at"]);
       setStatus("signin_required");
     } else {
-      setStatus("error: refresh failed");
+      setStatus("error: refresh failed"); // transient: keepalive retries; tokens kept
     }
     return null;
   }
-  const t = await r.json();
-  await storeToken(t);
-  return t.access_token;
 }
 
 // ---------- device registration ----------
@@ -219,9 +270,12 @@ async function ensureDevice(token) {
 }
 
 // ---------- teardown ----------
-// Best-effort OAuth2 token revocation (RFC 7009) at the IdP's revocation endpoint.
+// Best-effort OAuth2 token revocation (RFC 7009) at the IdP's revocation endpoint. oidc mode only:
+// in local mode there is no Keycloak session to end, so logout just drops the stored tokens.
 async function revokeToken(token, hint) {
   if (!token) return;
+  const { authMode } = await getConfig();
+  if (authMode === "local") return;
   let oidc;
   try {
     oidc = await oidcConfig();
@@ -268,7 +322,14 @@ async function logout() {
   const now = await getTokens();
   await revokeToken(now.refresh_token, "refresh_token");
   await revokeToken(bearer || now.access_token, "access_token");
-  await api.storage.local.remove(["access_token", "refresh_token", "expires_at", "device_id"]);
+  await api.storage.local.remove([
+    "access_token",
+    "refresh_token",
+    "expires_at",
+    "device_id",
+    "user_code",
+    "verification_uri",
+  ]);
   try {
     ws?.close();
   } catch {
@@ -290,16 +351,16 @@ function scheduleReconnect() {
 async function connect() {
   // Reject any non-CLOSED socket so a keepalive tick / scheduled retry can't stack duplicates.
   if (connecting || (ws && ws.readyState !== WebSocket.CLOSED)) return;
-  // Nothing baked in: without a Server URL + OIDC issuer there is nowhere to connect.
-  // Stay idle (don't fetch an empty issuer) until the popup saves a configuration.
+  // Nothing baked in: without a Server URL (plus, in oidc mode, an issuer) there is nowhere to
+  // connect. Stay idle (don't fetch an empty issuer) until the popup saves a configuration.
   const cfg0 = await getConfig();
-  if (!cfg0.serverUrl || !cfg0.issuer) {
+  if (!isConfigured(cfg0)) {
     setStatus("not_configured");
     return;
   }
   try {
     requireSecure(cfg0.serverUrl, "Server URL");
-    requireSecure(cfg0.issuer, "OIDC issuer");
+    if (cfg0.issuer) requireSecure(cfg0.issuer, "OIDC issuer");
   } catch (e) {
     setStatus("error: " + (e?.message || e));
     return;
@@ -405,9 +466,21 @@ api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ ok: false, error: e?.message || String(e) });
       }
     } else if (msg.cmd === "status") {
-      const s = await api.storage.local.get(["status", "device_id"]);
+      const s = await api.storage.local.get([
+        "status",
+        "device_id",
+        "user_code",
+        "verification_uri",
+      ]);
       const cfg = await getConfig();
-      sendResponse({ status: s.status || "idle", device_id: s.device_id || null, ...cfg });
+      sendResponse({
+        status: s.status || "idle",
+        device_id: s.device_id || null,
+        // Device grant in flight: the popup shows the code so the user can also type it manually.
+        user_code: s.user_code || null,
+        verification_uri: s.verification_uri || null,
+        ...cfg,
+      });
     } else if (msg.cmd === "discover") {
       try {
         const d = await discoverConfig(msg.serverUrl || "");
@@ -419,9 +492,16 @@ api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       // Whitelist: a config message must never write token/device keys into storage.
       const c = msg.config || {};
       const clean = {};
-      if (typeof c.serverUrl === "string") clean.serverUrl = c.serverUrl;
-      if (typeof c.issuer === "string") clean.issuer = c.issuer;
-      if (typeof c.clientId === "string") clean.clientId = c.clientId;
+      for (const k of [
+        "serverUrl",
+        "issuer",
+        "clientId",
+        "deviceAuthEndpoint",
+        "deviceTokenEndpoint",
+      ]) {
+        if (typeof c[k] === "string") clean[k] = c[k];
+      }
+      if (c.authMode === "local" || c.authMode === "oidc") clean.authMode = c.authMode;
       await api.storage.local.set(clean);
       sendResponse({ ok: true });
     } else if (msg.cmd === "tools") {

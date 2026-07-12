@@ -14,6 +14,7 @@ const SHARED = [
   "cdp.js",
   "platform.js",
   "urls.js",
+  "auth.js",
   "popup.html",
   "popup.js",
   "meeting.js",

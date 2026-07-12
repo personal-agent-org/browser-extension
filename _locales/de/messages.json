@@ -62,6 +62,10 @@
   "status_error": { "message": "Fehler" },
   "status_signin_required": { "message": "Anmeldung erforderlich — auf Verbinden klicken" },
   "status_not_configured": { "message": "Nicht konfiguriert — Einstellungen ausfüllen & speichern" },
+  "status_awaiting_approval": { "message": "Warte auf Bestätigung — Code freigeben" },
+  "deviceCodePrompt": {
+    "message": "Bestätige dieses Gerät im geöffneten Tab, oder gib diesen Code ein:"
+  },
   "meetingDetected": { "message": "Meeting erkannt - mit Personal Agent mitschreiben?" },
   "meetingConsent": {
     "message": "Dabei werden Tab- und Mikrofon-Audio aufgezeichnet und zur Transkription an deinen Personal Agent gesendet. Bitte informiere alle Teilnehmenden."
