@@ -14,7 +14,6 @@
 // Deliberately dependency-free (no WebExtension `api`, no DOM, injected fetch/sleep) so it loads
 // in every context AND can be unit-tested under plain Node (see test/auth.test.js).
 
-export const DEFAULT_CLIENT_ID = "personal-agent-browser";
 export const DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 
 // Terminal device-grant / refresh failures carry a machine-readable code so the caller can map it
@@ -29,50 +28,45 @@ export class AuthError extends Error {
 
 // ---------- client-config ----------
 
-// Keycloak's well-known device-grant URLs, derived from the issuer.
-export function keycloakDeviceEndpoints(issuer) {
-  const base = String(issuer || "").replace(/\/+$/, "");
-  if (!base) return { deviceAuthorization: "", deviceToken: "" };
-  return {
-    deviceAuthorization: `${base}/protocol/openid-connect/auth/device`,
-    deviceToken: `${base}/protocol/openid-connect/token`,
-  };
-}
-
-function absolutize(url, base) {
+function absoluteUrl(url) {
   if (!url) return "";
   try {
-    return new URL(url, base || undefined).toString();
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : "";
   } catch {
     return "";
   }
 }
 
 // GET /api/v1/public/client-config -> the settings we persist. `auth_mode` and the two device
-// endpoints are recent additions: an OLDER backend omits them, and an old backend is by
-// definition a Keycloak one, so default the mode to "oidc" and let resolveDeviceEndpoints()
-// derive the URLs from the issuer. That keeps a new extension working against an old server.
-export function parseClientConfig(raw, { defaultClientId = DEFAULT_CLIENT_ID } = {}) {
+// endpoints are the authority; no provider-specific URL shape is inferred by this client.
+export function parseClientConfig(raw) {
   const c = raw || {};
-  const authMode = c.auth_mode === "local" ? "local" : "oidc";
+  const authMode = c.auth_mode;
+  if (authMode !== "oidc" && authMode !== "local") {
+    throw new AuthError("server returned an invalid auth_mode");
+  }
   if (authMode === "oidc" && !c.oidc_issuer) throw new AuthError("server returned no oidc_issuer");
+  if (!c.browser_client_id) throw new AuthError("server returned no browser_client_id");
+  if (
+    authMode === "local" &&
+    (!absoluteUrl(c.device_authorization_endpoint) || !absoluteUrl(c.device_token_endpoint))
+  ) {
+    throw new AuthError("server returned incomplete local-auth endpoints");
+  }
   return {
     authMode,
     issuer: c.oidc_issuer || "",
-    clientId: c.browser_client_id || defaultClientId,
+    clientId: c.browser_client_id,
     deviceAuthEndpoint: c.device_authorization_endpoint || "",
     deviceTokenEndpoint: c.device_token_endpoint || "",
   };
 }
 
-// The device-grant endpoints for a stored config: the advertised ones win, otherwise fall back to
-// the Keycloak-derived URLs (old backend, see parseClientConfig). Relative URLs are resolved
-// against the server URL so a backend may advertise a path.
+// The backend must advertise complete absolute endpoints for local device auth.
 export function resolveDeviceEndpoints(cfg = {}) {
-  const fb = keycloakDeviceEndpoints(cfg.issuer);
-  const deviceAuthorization =
-    absolutize(cfg.deviceAuthEndpoint, cfg.serverUrl) || fb.deviceAuthorization;
-  const deviceToken = absolutize(cfg.deviceTokenEndpoint, cfg.serverUrl) || fb.deviceToken;
+  const deviceAuthorization = absoluteUrl(cfg.deviceAuthEndpoint);
+  const deviceToken = absoluteUrl(cfg.deviceTokenEndpoint);
   if (!deviceAuthorization || !deviceToken) {
     throw new AuthError("server advertises no device-grant endpoints", "not_configured");
   }

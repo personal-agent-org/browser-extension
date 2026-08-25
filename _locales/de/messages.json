@@ -4,13 +4,9 @@
   },
   "instanceSettings": { "message": "Instanz-Einstellungen" },
   "instanceHint": {
-    "message": "Gib die Server-URL deines Personal Agent ein und speichere — OIDC-Issuer und Client-ID werden automatisch vom Server geladen."
+    "message": "Gib die Server-URL deines Personal Agent ein und speichere — die Authentifizierung wird vom Server ermittelt."
   },
   "serverUrlLabel": { "message": "Server-URL" },
-  "advancedSummary": { "message": "Erweitert (OIDC überschreiben)" },
-  "issuerLabel": { "message": "OIDC-Issuer" },
-  "issuerPlaceholder": { "message": "automatisch vom Server ermittelt" },
-  "clientIdLabel": { "message": "Client-ID" },
   "saveSettings": { "message": "Einstellungen speichern" },
   "toolsLegend": { "message": "Freigegebene Tools & Sicherheit" },
   "toolsHint": {
@@ -40,7 +36,7 @@
     "placeholders": { "id": { "content": "$1" } }
   },
   "discoverFailed": {
-    "message": "Einstellungen konnten nicht vom Server gelesen werden ($error$). Prüfe die URL oder setze den OIDC-Issuer unter Erweitert.",
+    "message": "Die Authentifizierung konnte nicht vom Server ermittelt werden ($error$). Prüfe URL und Server-Konfiguration.",
     "placeholders": { "error": { "content": "$1" } }
   },
   "loginFailed": {

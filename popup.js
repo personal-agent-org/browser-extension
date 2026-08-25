@@ -34,8 +34,7 @@ function secureUrlError(v, label) {
   return "";
 }
 
-// Only the Server URL is required; the auth mode, OIDC issuer and client id are auto-discovered
-// from the server on Save (the Advanced fields are optional overrides).
+// Only the Server URL is entered; every authentication value is discovered from the backend.
 function configValid() {
   return secureUrlError($("serverUrl").value.trim(), "Server URL") === "";
 }
@@ -44,17 +43,11 @@ function configValid() {
 // mode there is no Keycloak at all, so an issuer is neither needed nor required for Connect.
 let authMode = "oidc";
 
-// Connect stays disabled until a valid server URL is saved AND - in oidc mode - an issuer is known
-// (discovered or entered manually); reflect validity inline.
+// Reflect URL validity inline. Authentication configuration is never entered manually.
 function reflectConfig() {
   const su = $("serverUrl");
-  const is = $("issuer");
   su.classList.toggle("invalid", su.value.trim() !== "" && secureUrlError(su.value.trim(), "x") !== "");
-  is.classList.toggle("invalid", is.value.trim() !== "" && secureUrlError(is.value.trim(), "x") !== "");
-  const issuerOk =
-    authMode === "local" ||
-    (is.value.trim() !== "" && secureUrlError(is.value.trim(), "x") === "");
-  $("login").disabled = !(configValid() && issuerOk);
+  $("login").disabled = !configValid();
 }
 
 async function refresh() {
@@ -79,12 +72,10 @@ async function refresh() {
   }
   // Only overwrite a field the user isn't actively editing, so typing isn't clobbered.
   if (document.activeElement !== $("serverUrl")) $("serverUrl").value = s.serverUrl || "";
-  if (document.activeElement !== $("issuer")) $("issuer").value = s.issuer || "";
-  if (document.activeElement !== $("clientId")) $("clientId").value = s.clientId || "";
   reflectConfig();
 }
 
-["serverUrl", "issuer"].forEach((id) => $(id).addEventListener("input", reflectConfig));
+$("serverUrl").addEventListener("input", reflectConfig);
 
 $("save").addEventListener("click", async () => {
   $("cfgErr").textContent = "";
@@ -94,38 +85,23 @@ $("save").addEventListener("click", async () => {
     $("cfgErr").textContent = suErr;
     return;
   }
-  let issuer = $("issuer").value.trim();
-  let clientId = $("clientId").value.trim();
-  if (issuer) {
-    const isErr = secureUrlError(issuer, t("issuerLabel"));
-    if (isErr) {
-      $("cfgErr").textContent = isErr;
-      return;
-    }
-  }
-  // Always ask the server how it authenticates (only the URL is required): the auth mode decides
-  // which login flow runs, and in local mode there is no issuer to fill in at all. A manual issuer
-  // override still wins, and it keeps working when discovery fails (then we assume oidc).
+  // Ask the server how it authenticates. Discovery is mandatory and authoritative.
   $("status").textContent = t("discovering");
   const d = await send("discover", { serverUrl });
-  if (!d?.ok && !issuer) {
+  if (!d?.ok) {
     $("cfgErr").textContent = t("discoverFailed", [d?.error || "unknown"]);
     $("status").textContent = t("status_not_configured");
     return;
   }
-  authMode = d?.ok && d.authMode === "local" ? "local" : "oidc";
-  issuer = issuer || (d?.ok ? d.issuer : "");
-  clientId = clientId || (d?.ok ? d.clientId : "") || "personal-agent-browser";
-  $("issuer").value = issuer;
-  $("clientId").value = clientId;
+  authMode = d.authMode === "local" ? "local" : "oidc";
   await send("saveConfig", {
     config: {
       serverUrl,
       authMode,
-      issuer,
-      clientId,
-      deviceAuthEndpoint: (d?.ok && d.deviceAuthEndpoint) || "",
-      deviceTokenEndpoint: (d?.ok && d.deviceTokenEndpoint) || "",
+      issuer: d.issuer,
+      clientId: d.clientId,
+      deviceAuthEndpoint: d.deviceAuthEndpoint,
+      deviceTokenEndpoint: d.deviceTokenEndpoint,
     },
   });
   $("status").textContent = t("saved");

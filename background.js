@@ -2,7 +2,8 @@
 // Authenticates the user (mode-agnostic: Keycloak OIDC + PKCE, or the backend's own local IdP via
 // the RFC 8628 device grant: see auth.js), registers a kind=browser device, then holds a
 // WebSocket to the backend's device gateway: announces browser_* tools and serves rpc_call
-// frames by driving the active tab (see tools.js). Protocol mirrors the Rust device-agent.
+// frames by driving the active tab (see tools.js). It uses the device protocol but remains a
+// distinct browser capability provider; Computer Service never receives this browser token.
 
 import {
   TOOL_SPECS,
@@ -16,7 +17,6 @@ import { secureUrlKind } from "./urls.js";
 import { registerMeetingHandlers } from "./meeting.js";
 import {
   AuthError,
-  DEFAULT_CLIENT_ID,
   createSingleFlightRefresh,
   parseClientConfig,
   pollDeviceToken,
@@ -33,7 +33,7 @@ const DEFAULTS = {
   serverUrl: "",
   authMode: "oidc",
   issuer: "",
-  clientId: DEFAULT_CLIENT_ID,
+  clientId: "",
   deviceAuthEndpoint: "",
   deviceTokenEndpoint: "",
 };
@@ -261,7 +261,9 @@ async function ensureDevice(token) {
   const r = await fetch(`${cfg.serverUrl}/api/v1/devices`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-    body: JSON.stringify({ name }),
+    // Browser bearer tokens are accepted by the device gateway only for explicitly registered
+    // browser devices. Computer Service uses a separate opaque, device-bound credential.
+    body: JSON.stringify({ name, kind: "browser" }),
   });
   if (!r.ok) throw new Error("device registration failed: " + r.status);
   const d = await r.json();

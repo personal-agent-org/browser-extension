@@ -8,28 +8,12 @@
     "description": "Legend of the server-configuration section."
   },
   "instanceHint": {
-    "message": "Enter your Personal Agent server URL and Save — the OIDC issuer and client ID are fetched from the server automatically.",
+    "message": "Enter your Personal Agent server URL and Save — authentication is discovered from the server.",
     "description": "Help text under the Instance settings legend."
   },
   "serverUrlLabel": {
     "message": "Server URL",
     "description": "Label for the server URL input; also used as the field name in validation errors."
-  },
-  "advancedSummary": {
-    "message": "Advanced (override OIDC)",
-    "description": "Toggle that reveals the optional OIDC override fields."
-  },
-  "issuerLabel": {
-    "message": "OIDC issuer",
-    "description": "Label for the OIDC issuer input; also used as the field name in validation errors."
-  },
-  "issuerPlaceholder": {
-    "message": "auto-discovered from server",
-    "description": "Placeholder for the optional OIDC issuer override input."
-  },
-  "clientIdLabel": {
-    "message": "Client ID",
-    "description": "Label for the optional OAuth client ID input."
   },
   "saveSettings": {
     "message": "Save settings",
@@ -103,7 +87,7 @@
     "placeholders": { "id": { "content": "$1" } }
   },
   "discoverFailed": {
-    "message": "Could not read settings from the server ($error$). Check the URL, or set the OIDC issuer under Advanced.",
+    "message": "Could not discover authentication from the server ($error$). Check the URL and server configuration.",
     "description": "Error when OIDC auto-discovery fails.",
     "placeholders": { "error": { "content": "$1" } }
   },
