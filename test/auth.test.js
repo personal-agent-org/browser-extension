@@ -40,8 +40,12 @@ function fakeSleep() {
 
 // ---------- client-config + endpoint resolution ----------
 
-test("parseClientConfig defaults an old backend (no auth_mode) to oidc", () => {
-  const c = parseClientConfig({ oidc_issuer: "https://kc.test/realms/pa", browser_client_id: "b" });
+test("parseClientConfig reads the advertised OIDC configuration", () => {
+  const c = parseClientConfig({
+    auth_mode: "oidc",
+    oidc_issuer: "https://kc.test/realms/pa",
+    browser_client_id: "b",
+  });
   assert.equal(c.authMode, "oidc");
   assert.equal(c.issuer, "https://kc.test/realms/pa");
   assert.equal(c.clientId, "b");
@@ -52,6 +56,7 @@ test("parseClientConfig defaults an old backend (no auth_mode) to oidc", () => {
 test("parseClientConfig reads local mode + the advertised device endpoints", () => {
   const c = parseClientConfig({
     auth_mode: "local",
+    browser_client_id: "personal-agent-browser",
     device_authorization_endpoint: "https://pa.test/api/v1/auth/device/code",
     device_token_endpoint: "https://pa.test/api/v1/auth/device/token",
   });
@@ -61,8 +66,14 @@ test("parseClientConfig reads local mode + the advertised device endpoints", () 
   assert.equal(c.deviceAuthEndpoint, "https://pa.test/api/v1/auth/device/code");
 });
 
-test("parseClientConfig rejects an oidc config without an issuer", () => {
-  assert.throws(() => parseClientConfig({ auth_mode: "oidc" }), AuthError);
+test("parseClientConfig rejects incomplete discovery", () => {
+  assert.throws(() => parseClientConfig({}), AuthError);
+  assert.throws(() => parseClientConfig({ auth_mode: "oidc", browser_client_id: "b" }), AuthError);
+  assert.throws(() => parseClientConfig({ auth_mode: "local" }), AuthError);
+  assert.throws(
+    () => parseClientConfig({ auth_mode: "local", browser_client_id: "b" }),
+    AuthError,
+  );
 });
 
 test("resolveDeviceEndpoints prefers the advertised URLs", () => {
@@ -78,22 +89,19 @@ test("resolveDeviceEndpoints prefers the advertised URLs", () => {
   });
 });
 
-test("resolveDeviceEndpoints falls back to the Keycloak-derived URLs on an old backend", () => {
-  const e = resolveDeviceEndpoints({ serverUrl: "https://pa.test", issuer: "https://kc.test/realms/pa/" });
-  assert.deepEqual(e, {
-    deviceAuthorization: "https://kc.test/realms/pa/protocol/openid-connect/auth/device",
-    deviceToken: "https://kc.test/realms/pa/protocol/openid-connect/token",
-  });
+test("resolveDeviceEndpoints never derives provider URLs", () => {
+  assert.throws(
+    () => resolveDeviceEndpoints({ issuer: "https://kc.test/realms/pa/" }),
+    AuthError,
+  );
 });
 
-test("resolveDeviceEndpoints resolves a relative endpoint against the server URL and errors with nothing to go on", () => {
-  const e = resolveDeviceEndpoints({
-    serverUrl: "https://pa.test",
+test("resolveDeviceEndpoints rejects relative or missing discovery values", () => {
+  assert.throws(() => resolveDeviceEndpoints({
     deviceAuthEndpoint: "/api/v1/auth/device/code",
     deviceTokenEndpoint: "/api/v1/auth/device/token",
-  });
-  assert.equal(e.deviceToken, "https://pa.test/api/v1/auth/device/token");
-  assert.throws(() => resolveDeviceEndpoints({ serverUrl: "https://pa.test" }), AuthError);
+  }), AuthError);
+  assert.throws(() => resolveDeviceEndpoints({}), AuthError);
 });
 
 // ---------- device grant ----------

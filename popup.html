@@ -51,16 +51,9 @@
 
     <fieldset>
       <legend data-i18n="instanceSettings">Instance settings</legend>
-      <div class="hint" data-i18n="instanceHint">Enter your Personal Agent server URL and Save — the OIDC issuer and client ID are fetched from the server automatically.</div>
+      <div class="hint" data-i18n="instanceHint">Enter your Personal Agent server URL and Save — authentication is discovered from the server.</div>
       <label data-i18n="serverUrlLabel">Server URL</label>
       <input id="serverUrl" placeholder="https://pa.example.com" />
-      <details id="advanced">
-        <summary style="font-size:11px;color:#9aa0aa;cursor:pointer;margin:2px 0 6px;" data-i18n="advancedSummary">Advanced (override OIDC)</summary>
-        <label data-i18n="issuerLabel">OIDC issuer</label>
-        <input id="issuer" data-i18n-placeholder="issuerPlaceholder" placeholder="auto-discovered from server" />
-        <label data-i18n="clientIdLabel">Client ID</label>
-        <input id="clientId" placeholder="personal-agent-browser" />
-      </details>
       <div class="hint err" id="cfgErr"></div>
       <button id="save" class="ghost" data-i18n="saveSettings">Save settings</button>
     </fieldset>
