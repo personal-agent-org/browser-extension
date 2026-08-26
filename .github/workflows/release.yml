@@ -1,16 +1,16 @@
 name: Release
 
-# CalVer (YYYY.M.MICRO). Run manually: MICRO is auto-computed as the next free number this month
+# CalVer (YEAR.MONTH.MINOR). Run manually: MINOR is auto-computed as the next free number this month
 # from the existing vYYYY.M.* tags (override only if you must, via the optional input). Runs CI,
 # sets the version in package.json (which flows into each manifest.json), builds the Chrome +
-# Firefox bundles, zips them store-ready, tags vYYYY.M.MICRO, commits the bump to main and cuts a
+# Firefox bundles, zips them store-ready, tags vYEAR.MONTH.MINOR, commits the bump to main and cuts a
 # GitHub Release with the ZIPs attached, then (optionally) auto-publishes the Chrome ZIP to the
 # Chrome Web Store via the official API. Firefox AMO stays manual.
 on:
   workflow_dispatch:
     inputs:
-      micro:
-        description: "Override MICRO (leave empty to auto-compute the next number this month)"
+      minor:
+        description: "Override MINOR (leave empty to auto-compute the next number this month)"
         required: false
         default: ""
       publish_chrome:
@@ -42,8 +42,8 @@ jobs:
         id: ver
         run: |
           prefix="$(date -u +%Y).$(date -u +%-m)"
-          micro="${{ github.event.inputs.micro }}"
-          if [ -z "$micro" ]; then
+          minor="${{ github.event.inputs.minor }}"
+          if [ -z "$minor" ]; then
             git fetch --tags --force --quiet || true
             last=-1
             for t in $(git tag -l "v${prefix}.*"); do
@@ -51,9 +51,10 @@ jobs:
               case "$n" in ''|*[!0-9]*) continue ;; esac
               [ "$n" -gt "$last" ] && last="$n"
             done
-            micro=$(( last + 1 ))
+            minor=$(( last + 1 ))
           fi
-          echo "version=${prefix}.${micro}" >> "$GITHUB_OUTPUT"
+          case "$minor" in ''|*[!0-9]*) echo "MINOR must be numeric" >&2; exit 1 ;; esac
+          echo "version=${prefix}.${minor}" >> "$GITHUB_OUTPUT"
       - run: npm ci
       - name: Set version + build store bundles
         run: |
