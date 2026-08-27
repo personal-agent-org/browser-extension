@@ -20,6 +20,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   ci:
@@ -65,6 +66,11 @@ jobs:
           v="${{ steps.ver.outputs.version }}"
           (cd dist/chrome && zip -qr -FS "../../personal-agent-chrome-${v}.zip" .)
           (cd dist/firefox && zip -qr -FS "../../personal-agent-firefox-${v}.zip" .)
+      - uses: sigstore/cosign-installer@v4.1.2
+      - name: Sign the release manifest
+        run: |
+          sha256sum personal-agent-*.zip > SHA256SUMS
+          cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
       - name: Commit version bump to main
         run: |
           git config user.name "github-actions[bot]"
@@ -81,7 +87,8 @@ jobs:
           git push origin "$v"
           gh release create "$v" --title "$v" --generate-notes \
             "personal-agent-chrome-${{ steps.ver.outputs.version }}.zip" \
-            "personal-agent-firefox-${{ steps.ver.outputs.version }}.zip"
+            "personal-agent-firefox-${{ steps.ver.outputs.version }}.zip" \
+            SHA256SUMS SHA256SUMS.sigstore.json
 
   # Auto-publish the Chrome ZIP to the Web Store via the official API (curl only, no third-party
   # action in the credential path). Skips gracefully if the CWS_* secrets are absent, so a release
